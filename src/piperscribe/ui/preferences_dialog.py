@@ -165,13 +165,31 @@ class PreferencesDialog(QDialog):
 
         vl.addLayout(vf)
 
-        btn_test = QPushButton("Test Piper installation")
-        btn_test.clicked.connect(self._test_piper)
+        # Voice management buttons
+        btn_test_piper = QPushButton("Test Piper Installation")
+        btn_test_piper.clicked.connect(self._test_piper)
 
-        hl = QHBoxLayout()
-        hl.addWidget(btn_test)
-        hl.addStretch(1)
-        vl.addLayout(hl)
+        btn_test_voice = QPushButton("Test Selected Voice")
+        btn_test_voice.clicked.connect(self._test_voice)
+
+        btn_browse_voices = QPushButton("Browse && Download Voices…")
+        btn_browse_voices.clicked.connect(self._browse_voices)
+
+        btn_delete_voice = QPushButton("Delete Selected Voice")
+        btn_delete_voice.clicked.connect(self._delete_voice)
+
+        hl1 = QHBoxLayout()
+        hl1.addWidget(btn_test_piper)
+        hl1.addWidget(btn_test_voice)
+        hl1.addStretch(1)
+        vl.addLayout(hl1)
+
+        hl2 = QHBoxLayout()
+        hl2.addWidget(btn_browse_voices)
+        hl2.addWidget(btn_delete_voice)
+        hl2.addStretch(1)
+        vl.addLayout(hl2)
+
         vl.addStretch(1)
         self.tabs.addTab(voice, "Voice")
 
@@ -254,6 +272,145 @@ class PreferencesDialog(QDialog):
             QMessageBox.warning(self, "Piper not found", st.error or "`piper` not found on PATH.")
             return
         QMessageBox.information(self, "Piper OK", f"Found Piper at:\n{st.path}")
+
+    def _test_voice(self) -> None:
+        """Test the selected voice with sample text."""
+        from PySide6.QtCore import QProcess
+        import tempfile
+
+        # Check Piper is installed
+        st = check_piper_installed()
+        if not st.found:
+            QMessageBox.warning(self, "Piper not found", st.error or "`piper` not found on PATH.")
+            return
+
+        # Get selected voice model path
+        model_path = self.model_path.text().strip()
+        if not model_path:
+            QMessageBox.warning(self, "No Voice Selected", "Please select a voice model first.")
+            return
+
+        model_path_expanded = Path(model_path).expanduser()
+        if not model_path_expanded.exists():
+            QMessageBox.warning(self, "Voice Not Found", f"Voice model file not found:\n{model_path}")
+            return
+
+        # Sample text for testing
+        sample_text = "Hello! This is a test of the selected voice. How does it sound?"
+
+        # Create temp file for audio output
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            wav_path = tmp.name
+
+        try:
+            # Run Piper to generate sample audio
+            import subprocess
+            result = subprocess.run(
+                ["piper", "--model", str(model_path_expanded), "--output_file", wav_path],
+                input=sample_text.encode('utf-8'),
+                capture_output=True,
+                timeout=10
+            )
+
+            if result.returncode != 0:
+                error_msg = result.stderr.decode('utf-8', errors='replace')
+                QMessageBox.critical(self, "Piper Error", f"Failed to generate audio:\n{error_msg}")
+                return
+
+            # Play the audio using aplay (Linux) - could be extended for other platforms
+            try:
+                subprocess.run(["aplay", wav_path], check=True, timeout=10)
+            except FileNotFoundError:
+                QMessageBox.information(
+                    self,
+                    "Audio Generated",
+                    f"Audio generated successfully but cannot play automatically.\n\nFile saved to: {wav_path}"
+                )
+            except Exception as e:
+                QMessageBox.warning(self, "Playback Error", f"Failed to play audio:\n{e}")
+
+        except subprocess.TimeoutExpired:
+            QMessageBox.warning(self, "Timeout", "Voice test timed out.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to test voice:\n{e}")
+        finally:
+            # Clean up temp file
+            try:
+                Path(wav_path).unlink()
+            except Exception:
+                pass
+
+    def _browse_voices(self) -> None:
+        """Open voice browser dialog."""
+        from piperscribe.ui.voice_browser import VoiceBrowserDialog
+
+        dlg = VoiceBrowserDialog(self, self._current.voice_repositories)
+        if dlg.exec() == dlg.Accepted or True:  # Always refresh after closing
+            # Refresh voice list
+            self._models = iter_model_paths()
+            self.voice.clear()
+            if not self._models:
+                self.voice.addItem("(no voices found)")
+                self.voice.setEnabled(False)
+            else:
+                self.voice.setEnabled(True)
+                for p in self._models:
+                    self.voice.addItem(p.stem)
+                # Try to reselect current voice
+                current_path = self.model_path.text().strip()
+                if current_path:
+                    self._sync_voice_from_path(current_path)
+
+    def _delete_voice(self) -> None:
+        """Delete the selected voice model."""
+        model_path = self.model_path.text().strip()
+        if not model_path:
+            QMessageBox.warning(self, "No Voice Selected", "Please select a voice model to delete.")
+            return
+
+        model_path_expanded = Path(model_path).expanduser()
+        if not model_path_expanded.exists():
+            QMessageBox.warning(self, "Voice Not Found", f"Voice model file not found:\n{model_path}")
+            return
+
+        # Confirm deletion
+        voice_name = model_path_expanded.stem
+        resp = QMessageBox.question(
+            self,
+            "Delete Voice",
+            f"Are you sure you want to delete this voice?\n\n{voice_name}\n\nThis will delete:\n- {model_path_expanded.name}\n- {model_path_expanded.name}.json (if present)",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if resp != QMessageBox.Yes:
+            return
+
+        try:
+            # Delete .onnx file
+            model_path_expanded.unlink()
+
+            # Delete .onnx.json file if it exists
+            json_file = Path(str(model_path_expanded) + ".json")
+            if json_file.exists():
+                json_file.unlink()
+
+            QMessageBox.information(self, "Voice Deleted", f"Voice '{voice_name}' has been deleted.")
+
+            # Refresh voice list
+            self._models = iter_model_paths()
+            self.voice.clear()
+            self.model_path.clear()
+            if not self._models:
+                self.voice.addItem("(no voices found)")
+                self.voice.setEnabled(False)
+            else:
+                self.voice.setEnabled(True)
+                for p in self._models:
+                    self.voice.addItem(p.stem)
+
+        except Exception as e:
+            QMessageBox.critical(self, "Delete Failed", f"Failed to delete voice:\n{e}")
 
     def _update_color_button(self, button: QPushButton, color_hex: str) -> None:
         """Update button style to show the selected color."""
