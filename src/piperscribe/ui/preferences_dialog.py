@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTabWidget,
     QDoubleSpinBox,
@@ -37,9 +38,9 @@ class PreferencesDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Preferences — PiperScribe")
         self.setModal(True)
-        # Set conservative size constraints to fit on smaller screens
-        self.resize(750, 500)
-        self.setMaximumHeight(550)
+        # Set very conservative size to fit on small screens
+        self.resize(750, 450)
+        self.setMaximumHeight(500)
 
         self._text = document_text
         self._apply_callback = apply_callback
@@ -227,8 +228,14 @@ class PreferencesDialog(QDialog):
         buttons.rejected.connect(self.reject)
         buttons.button(QDialogButtonBox.Apply).clicked.connect(self._apply_now)
 
+        # Wrap tabs in scroll area to ensure dialog fits on any screen
+        scroll_area = QScrollArea()
+        scroll_area.setWidget(self.tabs)
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QScrollArea.NoFrame)
+
         layout = QVBoxLayout(self)
-        layout.addWidget(self.tabs, 1)
+        layout.addWidget(scroll_area, 1)
         layout.addWidget(buttons)
 
         # Set initial tab
