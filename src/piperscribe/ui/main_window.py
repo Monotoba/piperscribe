@@ -96,9 +96,10 @@ class MainWindow(QMainWindow):
         act_new_project.triggered.connect(self.on_new_project)
         m_file.addAction(act_new_project)
 
-        act_open = QAction("Open…", self)
-        act_open.triggered.connect(self.on_open)
-        m_file.addAction(act_open)
+        act_import = QAction("Import Document(s)…", self)
+        act_import.setShortcut("Ctrl+I")
+        act_import.triggered.connect(self.on_import_documents)
+        m_file.addAction(act_import)
 
         act_save_proj = QAction("Save Project…", self)
         act_save_proj.triggered.connect(self.on_save_project)
@@ -333,8 +334,9 @@ class MainWindow(QMainWindow):
 
         # Document management buttons
         btn_row = QHBoxLayout()
-        self.btn_add_doc = QPushButton("Add")
-        self.btn_add_doc.clicked.connect(self.on_add_document)
+        self.btn_add_doc = QPushButton("Import...")
+        self.btn_add_doc.setToolTip("Import document(s) from file")
+        self.btn_add_doc.clicked.connect(self.on_import_documents)
         btn_row.addWidget(self.btn_add_doc)
 
         self.btn_remove_doc = QPushButton("Remove")
@@ -634,25 +636,59 @@ class MainWindow(QMainWindow):
 
         return self.project.documents[0]
 
-    def on_add_document(self) -> None:
-        """Add a new empty document to the project."""
-        doc = Document(
-            id=Document.generate_id(),
-            title=f"Document {len(self.project.documents) + 1}",
-            text="",
-            piper=self.project.default_piper,
-            order=len(self.project.documents),
-            enabled=True,
+    def on_import_documents(self) -> None:
+        """Import one or more documents into the project."""
+        # Show file dialog with MULTIPLE file selection
+        paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Import Document(s)",
+            str(Path.home()),
+            "Documents (*.txt *.text *.docx *.md *.markdown *.html *.htm *.pdf);;All files (*)"
         )
-        self.project.add_document(doc)
+
+        if not paths:
+            return
+
+        last_doc_id = None
+
+        # Import each selected file
+        for path_str in paths:
+            p = Path(path_str)
+            try:
+                res = import_any(p)
+            except Exception as e:
+                QMessageBox.warning(
+                    self,
+                    "Import Failed",
+                    f"Failed to import {p.name}:\n\n{e}"
+                )
+                continue
+
+            # Create new document
+            doc = Document(
+                id=Document.generate_id(),
+                title=res.title or p.stem,
+                text=res.text,
+                source_path=str(p),
+                piper=self.project.default_piper,
+                order=len(self.project.documents),
+                enabled=True,
+            )
+
+            self.project.add_document(doc)
+            self._push_recent_file(str(p))
+            last_doc_id = doc.id
+
+        # Update UI
         self._rebuild_document_list()
 
-        # Select the new document
-        for i in range(self.doc_list.count()):
-            item = self.doc_list.item(i)
-            if item.data(Qt.UserRole) == doc.id:
-                self.doc_list.setCurrentRow(i)
-                break
+        # Select last imported document
+        if last_doc_id:
+            for i in range(self.doc_list.count()):
+                item = self.doc_list.item(i)
+                if item.data(Qt.UserRole) == last_doc_id:
+                    self.doc_list.setCurrentRow(i)
+                    break
 
     def on_remove_document(self) -> None:
         """Remove the currently selected document."""

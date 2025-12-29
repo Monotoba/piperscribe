@@ -22,14 +22,15 @@ PiperScribe supports multiple documents in a single project, perfect for audiobo
 
 ### Adding Documents
 
-**File → Open** or **Ctrl+I** - Import document
-- Adds to current project (doesn't replace)
-- Supports: TXT, DOCX, PDF, Markdown
+**File → Import Document(s)…** or **Ctrl+I** - Import one or more documents
+- Allows selecting multiple files at once
+- Adds to current project (doesn't replace existing documents)
+- Supports: TXT, DOCX, PDF, Markdown, HTML
 - Each document gets unique ID
 
-**Add Button** - Create empty document
-- Manually add content later
-- Useful for organizing chapters
+**Import Button** (in sidebar) - Quick access to import
+- Same as File → Import Document(s)
+- Convenient for adding multiple files
 
 ### Per-Document Settings
 

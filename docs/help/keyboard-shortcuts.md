@@ -8,7 +8,7 @@
 | **Ctrl+O** | Open Project | Load an existing project file |
 | **Ctrl+S** | Save Project | Save current project |
 | **Ctrl+Shift+S** | Save Project As | Save project with new name |
-| **Ctrl+I** | Import Document | Import TXT, DOCX, PDF, or Markdown |
+| **Ctrl+I** | Import Document(s) | Import one or more documents (TXT, DOCX, PDF, Markdown, HTML) |
 | **Ctrl+E** | Export Audio | Save generated audio as WAV file |
 | **Ctrl+Q** | Quit | Exit PiperScribe |
 
@@ -129,7 +129,7 @@ When text is selected, use these actions from the toolbar:
 ```
 Open Project: Ctrl+O
 Save Project: Ctrl+S
-Import Text: Ctrl+I
+Import Document(s): Ctrl+I
 Generate Audio: Ctrl+G
 Export Audio: Ctrl+E
 Preferences: Ctrl+,
