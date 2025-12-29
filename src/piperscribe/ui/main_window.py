@@ -499,6 +499,15 @@ class MainWindow(QMainWindow):
             noise_w=float(self.noise_w.value()),
             rules=self._app_settings.rules,
             auto_apply_rules=self._app_settings.auto_apply_rules,
+            show_selection_toolbar=self._app_settings.show_selection_toolbar,
+            font_family=self._app_settings.font_family,
+            font_size=self._app_settings.font_size,
+            use_default_font=self._app_settings.use_default_font,
+            doc_bg_color=self._app_settings.doc_bg_color,
+            doc_text_color=self._app_settings.doc_text_color,
+            use_default_colors=self._app_settings.use_default_colors,
+            recent_files=self._app_settings.recent_files,
+            recent_projects=self._app_settings.recent_projects,
         )
         try:
             save_settings(s)
