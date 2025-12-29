@@ -8,16 +8,20 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QProcess, QTimer
 from PySide6.QtGui import QAction, QTextCharFormat, QTextCursor, QPalette, QColor
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QComboBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QPushButton,
     QDoubleSpinBox,
+    QSplitter,
     QTextEdit,
     QToolBar,
     QVBoxLayout,
@@ -26,7 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from piperscribe.importers.registry import import_any
-from piperscribe.model.document import DocumentProject
+from piperscribe.model.document import Document, DocumentProject
 from piperscribe.model.spans import Span, normalize_spans
 from piperscribe.rules import apply_rules
 from piperscribe.audio.export import included_text
@@ -286,10 +290,54 @@ class MainWindow(QMainWindow):
         self.find_bar.setVisible(False)
         layout.addWidget(self.find_bar)
 
+        # Splitter: document list on left, editor on right
+        splitter = QSplitter(Qt.Horizontal)
+
+        # Left side: Document list
+        doc_list_widget = QWidget()
+        doc_list_layout = QVBoxLayout(doc_list_widget)
+        doc_list_layout.setContentsMargins(0, 0, 0, 0)
+
+        doc_list_layout.addWidget(QLabel("Documents:"))
+
+        self.doc_list = QListWidget()
+        self.doc_list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.doc_list.currentItemChanged.connect(self._on_document_selected)
+        doc_list_layout.addWidget(self.doc_list, 1)
+
+        # Document management buttons
+        btn_row = QHBoxLayout()
+        self.btn_add_doc = QPushButton("Add")
+        self.btn_add_doc.clicked.connect(self.on_add_document)
+        btn_row.addWidget(self.btn_add_doc)
+
+        self.btn_remove_doc = QPushButton("Remove")
+        self.btn_remove_doc.clicked.connect(self.on_remove_document)
+        btn_row.addWidget(self.btn_remove_doc)
+
+        self.btn_move_up = QPushButton("↑")
+        self.btn_move_up.clicked.connect(self.on_move_document_up)
+        btn_row.addWidget(self.btn_move_up)
+
+        self.btn_move_down = QPushButton("↓")
+        self.btn_move_down.clicked.connect(self.on_move_document_down)
+        btn_row.addWidget(self.btn_move_down)
+
+        doc_list_layout.addLayout(btn_row)
+
+        splitter.addWidget(doc_list_widget)
+
+        # Right side: Document editor
         self.editor = QTextEdit()
         self.editor.setReadOnly(True)
         self.editor.setLineWrapMode(QTextEdit.WidgetWidth)
-        layout.addWidget(self.editor, 1)
+        splitter.addWidget(self.editor)
+
+        # Set splitter sizes: document list gets less space than editor
+        splitter.setStretchFactor(0, 1)  # Document list
+        splitter.setStretchFactor(1, 3)  # Editor gets more space
+
+        layout.addWidget(splitter, 1)
 
     def _init_piper_environment(self) -> None:
         status = check_piper_installed()
@@ -345,7 +393,7 @@ class MainWindow(QMainWindow):
         self._persist_app_settings()
 
     def _refresh_view(self) -> None:
-        self.editor.setPlainText(self.project.text)
+        self._rebuild_document_list()
         self._apply_theme(self.project.theme)
         self._apply_document_appearance()
         self.model_path.setText(self.project.piper.model_path)
@@ -379,6 +427,157 @@ class MainWindow(QMainWindow):
         self._sync_piper_settings_from_ui()
         self._persist_app_settings()
 
+    def _on_document_selected(self, current: QListWidgetItem | None, previous: QListWidgetItem | None) -> None:
+        """Handle document selection change."""
+        if not current:
+            self.editor.setPlainText("")
+            return
+
+        doc_id = current.data(Qt.UserRole)
+        doc = self.project.get_document(doc_id)
+        if not doc:
+            return
+
+        # Load document text into editor
+        self.editor.setPlainText(doc.text)
+
+        # Update exclusion formatting
+        self._apply_exclusion_formatting()
+        self._update_stats()
+
+    def _rebuild_document_list(self) -> None:
+        """Rebuild the document list with status icons."""
+        current_id = None
+        current_item = self.doc_list.currentItem()
+        if current_item:
+            current_id = current_item.data(Qt.UserRole)
+
+        self.doc_list.clear()
+
+        for doc in self.project.documents:
+            # Status icons
+            enabled_icon = "✓" if doc.enabled else "⨯"
+            audio_icon = "🔊" if doc.audio_path else "⚫"
+
+            # Display format: [enabled] [audio] Title
+            label = f"{enabled_icon} {audio_icon} {doc.title}"
+
+            item = QListWidgetItem(label)
+            item.setData(Qt.UserRole, doc.id)
+            self.doc_list.addItem(item)
+
+            # Restore selection
+            if doc.id == current_id:
+                self.doc_list.setCurrentItem(item)
+
+        # If no selection and documents exist, select first
+        if not self.doc_list.currentItem() and self.doc_list.count() > 0:
+            self.doc_list.setCurrentRow(0)
+
+        # Update button states
+        self._update_document_buttons()
+
+    def _update_document_buttons(self) -> None:
+        """Update enabled state of document management buttons."""
+        has_selection = self.doc_list.currentItem() is not None
+
+        self.btn_remove_doc.setEnabled(has_selection)
+        self.btn_move_up.setEnabled(has_selection and self.doc_list.currentRow() > 0)
+        self.btn_move_down.setEnabled(has_selection and self.doc_list.currentRow() < self.doc_list.count() - 1)
+
+    def _get_current_document(self) -> Document | None:
+        """Get the currently selected document."""
+        current_item = self.doc_list.currentItem()
+        if not current_item:
+            return None
+        doc_id = current_item.data(Qt.UserRole)
+        return self.project.get_document(doc_id)
+
+    def _ensure_current_document(self) -> Document:
+        """Get current document or create one if project is empty."""
+        doc = self._get_current_document()
+        if doc:
+            return doc
+
+        # No document selected - create one if project is empty
+        if not self.project.documents:
+            doc = Document(
+                id=Document.generate_id(),
+                title="Document 1",
+                text="",
+                piper=self.project.default_piper,
+                order=0,
+                enabled=True,
+            )
+            self.project.add_document(doc)
+            self._rebuild_document_list()
+
+        return self.project.documents[0]
+
+    def on_add_document(self) -> None:
+        """Add a new empty document to the project."""
+        doc = Document(
+            id=Document.generate_id(),
+            title=f"Document {len(self.project.documents) + 1}",
+            text="",
+            piper=self.project.default_piper,
+            order=len(self.project.documents),
+            enabled=True,
+        )
+        self.project.add_document(doc)
+        self._rebuild_document_list()
+
+        # Select the new document
+        for i in range(self.doc_list.count()):
+            item = self.doc_list.item(i)
+            if item.data(Qt.UserRole) == doc.id:
+                self.doc_list.setCurrentRow(i)
+                break
+
+    def on_remove_document(self) -> None:
+        """Remove the currently selected document."""
+        doc = self._get_current_document()
+        if not doc:
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "Remove Document",
+            f"Remove document '{doc.title}'?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            self.project.remove_document(doc.id)
+            self._rebuild_document_list()
+
+    def on_move_document_up(self) -> None:
+        """Move the currently selected document up in the list."""
+        current_row = self.doc_list.currentRow()
+        if current_row <= 0:
+            return
+
+        doc_ids = [self.doc_list.item(i).data(Qt.UserRole) for i in range(self.doc_list.count())]
+        doc_ids[current_row], doc_ids[current_row - 1] = doc_ids[current_row - 1], doc_ids[current_row]
+
+        self.project.reorder_documents(doc_ids)
+        self._rebuild_document_list()
+        self.doc_list.setCurrentRow(current_row - 1)
+
+    def on_move_document_down(self) -> None:
+        """Move the currently selected document down in the list."""
+        current_row = self.doc_list.currentRow()
+        if current_row < 0 or current_row >= self.doc_list.count() - 1:
+            return
+
+        doc_ids = [self.doc_list.item(i).data(Qt.UserRole) for i in range(self.doc_list.count())]
+        doc_ids[current_row], doc_ids[current_row + 1] = doc_ids[current_row + 1], doc_ids[current_row]
+
+        self.project.reorder_documents(doc_ids)
+        self._rebuild_document_list()
+        self.doc_list.setCurrentRow(current_row + 1)
+
     def _sync_piper_settings_from_ui(self) -> None:
         mp = os.path.expanduser(self.model_path.text().strip())
         self.project.piper.model_path = mp
@@ -388,25 +587,33 @@ class MainWindow(QMainWindow):
 
     def _recompute_exclusions(self) -> None:
         # Computed exclusions = manual + (optional) rules
+        doc = self._get_current_document()
+        if not doc:
+            return
+
         if getattr(self._app_settings, "auto_apply_rules", True):
-            self.project.exclusions = apply_rules(
-                self.project.text,
-                self.project.manual_exclusions,
+            doc.exclusions = apply_rules(
+                doc.text,
+                doc.manual_exclusions,
                 self._app_settings.rules,
             )
         else:
-            self.project.exclusions = self.project.manual_exclusions[:]
+            doc.exclusions = doc.manual_exclusions[:]
 
     def _apply_exclusion_formatting(self) -> None:
-        text_len = len(self.project.text)
-        self.project.exclusions = normalize_spans(self.project.exclusions, text_len)
+        doc = self._get_current_document()
+        if not doc:
+            return
+
+        text_len = len(doc.text)
+        doc.exclusions = normalize_spans(doc.exclusions, text_len)
 
         extra = []
         fmt = QTextCharFormat()
         fmt.setForeground(Qt.gray)
         fmt.setFontStrikeOut(True)
 
-        for sp in self.project.exclusions:
+        for sp in doc.exclusions:
             cur = self.editor.textCursor()
             cur.setPosition(sp.start)
             cur.setPosition(sp.end, QTextCursor.KeepAnchor)
@@ -418,9 +625,17 @@ class MainWindow(QMainWindow):
         self.editor.setExtraSelections(extra)
 
     def _update_stats(self) -> None:
-        total = len(self.project.text)
-        excl = sum(max(0, s.end - s.start) for s in self.project.exclusions)
-        incl = len(included_text(self.project))
+        doc = self._get_current_document()
+        if not doc:
+            self.stats.setText("")
+            return
+
+        total = len(doc.text)
+        excl = sum(max(0, s.end - s.start) for s in doc.exclusions)
+        # Calculate included text length for current document
+        from piperscribe.model.spans import subtract_spans
+        incl_text = subtract_spans(doc.text, doc.exclusions).strip()
+        incl = len(incl_text)
         self.stats.setText(f"Chars: total={total} excluded={excl} included~={incl}")
 
     # ---------------- Theme ----------------
@@ -598,7 +813,9 @@ class MainWindow(QMainWindow):
             rules=self._app_settings.rules,
             auto_apply_rules=getattr(self._app_settings, "auto_apply_rules", True),
         )
-        dlg = PreferencesDialog(self, current, self.project.text, apply_callback=self._apply_preferences_live, initial_tab=initial_tab)
+        doc = self._get_current_document()
+        doc_text = doc.text if doc else ""
+        dlg = PreferencesDialog(self, current, doc_text, apply_callback=self._apply_preferences_live, initial_tab=initial_tab)
         if dlg.exec() != dlg.Accepted:
             return
         new = dlg.result_settings()
@@ -643,17 +860,21 @@ class MainWindow(QMainWindow):
             self.editor.find(needle, QTextDocument.FindBackward)
 
     def on_new_project(self) -> None:
-        # Start a new empty project (in-memory)
-        self.project = DocumentProject(
-            source_path="",
-            title="",
+        # Start a new empty project (in-memory) with one empty document
+        doc = Document(
+            id=Document.generate_id(),
+            title="Document 1",
             text="",
-            manual_exclusions=[],
-            exclusions=[],
             piper=self.project.piper,
-            theme=self.project.theme,
+            order=0,
+            enabled=True,
         )
-        self.editor.setPlainText("")
+        self.project = DocumentProject(
+            title="Untitled Project",
+            documents=[doc],
+            theme=self.project.theme,
+            default_piper=self.project.piper,
+        )
         self._refresh_view()
 
     def on_close_project(self) -> None:
@@ -795,25 +1016,36 @@ class MainWindow(QMainWindow):
         )
 
     def _open_document_path(self, path: str) -> None:
-        # Placeholder: this method is referenced by recent-file menu.
-        # Current importer path for "open document" uses import_any().
+        # Import a document and add it to the current project
         p = Path(path)
         try:
             res = import_any(p)
         except Exception as e:
             QMessageBox.critical(self, "Import failed", str(e))
             return
-        self.project = DocumentProject(
-            source_path=str(p),
-            title=res.title,
+
+        # Create new document from imported content
+        doc = Document(
+            id=Document.generate_id(),
+            title=res.title or p.stem,
             text=res.text,
-            manual_exclusions=[],
-            exclusions=[],
-            piper=self.project.piper,
-            theme=self.project.theme,
+            source_path=str(p),
+            piper=self.project.default_piper,
+            order=len(self.project.documents),
+            enabled=True,
         )
-        self.editor.setPlainText(self.project.text)
-        self._refresh_view()
+
+        self.project.add_document(doc)
+        self._rebuild_document_list()
+
+        # Select the newly added document
+        for i in range(self.doc_list.count()):
+            item = self.doc_list.item(i)
+            if item.data(Qt.UserRole) == doc.id:
+                self.doc_list.setCurrentRow(i)
+                break
+
+        self._push_recent_file(str(p))
 
     def _load_project_from_path(self, path: str) -> None:
         """Load a project file from disk."""
@@ -825,7 +1057,6 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Load failed", str(e))
             return
         self.setWindowTitle(f"PiperScribe v0.1.20 — {self.project.title}")
-        self.editor.setPlainText(self.project.text)
         self._init_piper_environment()
         self._refresh_view()
 
@@ -926,20 +1157,28 @@ class MainWindow(QMainWindow):
         return Span(start, end, "user")
 
     def on_exclude_selection(self) -> None:
+        doc = self._get_current_document()
+        if not doc:
+            return
+
         sp = self._selection_span()
         if not sp:
             return
-        self.project.manual_exclusions.append(sp)
+        doc.manual_exclusions.append(sp)
         self._recompute_exclusions()
         self._apply_exclusion_formatting()
         self._update_stats()
 
     def on_include_selection(self) -> None:
+        doc = self._get_current_document()
+        if not doc:
+            return
+
         sp = self._selection_span()
         if not sp:
             return
         new_excl: list[Span] = []
-        for ex in normalize_spans(self.project.manual_exclusions, len(self.project.text)):
+        for ex in normalize_spans(doc.manual_exclusions, len(doc.text)):
             if ex.end <= sp.start or ex.start >= sp.end:
                 new_excl.append(ex)
             else:
@@ -947,7 +1186,7 @@ class MainWindow(QMainWindow):
                     new_excl.append(Span(ex.start, sp.start, ex.reason))
                 if ex.end > sp.end:
                     new_excl.append(Span(sp.end, ex.end, ex.reason))
-        self.project.manual_exclusions = new_excl
+        doc.manual_exclusions = new_excl
         self._recompute_exclusions()
         self._apply_exclusion_formatting()
         self._update_stats()
@@ -1027,7 +1266,11 @@ class MainWindow(QMainWindow):
         if not self._ensure_piper_ready():
             return
 
-        text = self.project.text[sp.start:sp.end].strip()
+        doc = self._get_current_document()
+        if not doc:
+            return
+
+        text = doc.text[sp.start:sp.end].strip()
         if not text:
             return
 
