@@ -64,6 +64,7 @@ class MainWindow(QMainWindow):
         m_file = menubar.addMenu("&File")
         m_edit = menubar.addMenu("&Edit")
         m_tools = menubar.addMenu("&Tools")
+        m_help = menubar.addMenu("&Help")
         menubar.setNativeMenuBar(False)
 
         # Recent
@@ -150,6 +151,18 @@ class MainWindow(QMainWindow):
         act_browse_voices = QAction("Browse && Download Voices…", self)
         act_browse_voices.triggered.connect(self.on_browse_voices)
         m_tools.addAction(act_browse_voices)
+
+        # Help menu
+        act_help_contents = QAction("Help Contents…", self)
+        act_help_contents.setShortcut("F1")
+        act_help_contents.triggered.connect(self.on_help_contents)
+        m_help.addAction(act_help_contents)
+
+        m_help.addSeparator()
+
+        act_about = QAction("About PiperScribe", self)
+        act_about.triggered.connect(self.on_about)
+        m_help.addAction(act_about)
 
         # Dockable selection toolbar (toggle in Preferences → Appearance)
         self.selection_tb = QToolBar("Selection Tools", self)
@@ -762,6 +775,24 @@ class MainWindow(QMainWindow):
                 self.voice_combo.addItem(p.stem)
             if self.project.piper.model_path:
                 self._select_voice_by_path(self.project.piper.model_path)
+
+    def on_help_contents(self) -> None:
+        """Open the help documentation dialog."""
+        from piperscribe.ui.help_dialog import HelpDialog
+
+        dlg = HelpDialog(self)
+        dlg.exec()
+
+    def on_about(self) -> None:
+        """Display the About dialog with version information."""
+        QMessageBox.about(
+            self,
+            "About PiperScribe",
+            "PiperScribe v0.1.20\n\n"
+            "A PySide6 GUI for text-to-speech with Piper.\n\n"
+            "Piper TTS: https://github.com/rhasspy/piper\n"
+            "Documentation: Press F1 for help"
+        )
 
     def _open_document_path(self, path: str) -> None:
         # Placeholder: this method is referenced by recent-file menu.
