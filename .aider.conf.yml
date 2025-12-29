@@ -1,0 +1,46 @@
+# Aider configuration for PiperScribe
+# Place this file at repo root: .aider.conf.yml
+
+# Avoid surprise commits; user controls commits explicitly.
+auto-commits: false
+confirm-commits: true
+dirty-commits: false
+
+# Prefer readable diffs.
+edit-format: diff
+
+# Keep context reasonable (adjust if you want).
+# max-context: 16k
+
+# If you use Aider's /test command, run these:
+test-cmd: |
+  python -m compileall src &&
+  pytest
+
+# Core behavioral instructions Aider should follow for this repo.
+instructions: |
+  This is a PySide6 desktop app (PiperScribe). Follow these rules:
+
+  QUALITY GATES (mandatory before proposing completion):
+  1) python -m compileall src
+  2) pytest
+  3) ./run.sh must launch UI without traceback (user will run this locally)
+
+  STABILITY FIRST:
+  - If a file is structurally corrupted (indentation errors / duplicated blocks),
+    replace the file cleanly rather than patching it line-by-line.
+  - Keep diffs minimal, readable, and phase-scoped.
+
+  UI WIRING RULES:
+  - Any QAction used in multiple places must be an instance attribute (self.act_*).
+  - Do not connect signals to missing methods.
+  - Do not reference locals that may not be defined on all code paths.
+
+  SCOPE CONTROL:
+  - Do not add new features unless explicitly requested.
+  - Prefer small refactors with tests over feature work.
+
+  TESTING:
+  - Add/maintain smoke tests that import key modules.
+  - For UI tests, use pytest.importorskip("PySide6") and avoid showing windows.
+
