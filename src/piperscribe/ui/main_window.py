@@ -330,6 +330,7 @@ class MainWindow(QMainWindow):
     def _refresh_view(self) -> None:
         self.editor.setPlainText(self.project.text)
         self._apply_theme(self.project.theme)
+        self._apply_document_appearance()
         self.model_path.setText(self.project.piper.model_path)
         # Theme combo
         t = (self.project.theme or "system").lower()
@@ -450,6 +451,36 @@ class MainWindow(QMainWindow):
         dark.setColor(QPalette.HighlightedText, Qt.black)
         app.setPalette(dark)
 
+    def _apply_document_appearance(self) -> None:
+        """Apply custom font and color settings to the document editor."""
+        # Apply font settings
+        if not self._app_settings.use_default_font:
+            if self._app_settings.font_family or self._app_settings.font_size > 0:
+                from PySide6.QtGui import QFont
+                font = self.editor.font()
+                if self._app_settings.font_family:
+                    font.setFamily(self._app_settings.font_family)
+                if self._app_settings.font_size > 0:
+                    font.setPointSize(self._app_settings.font_size)
+                self.editor.setFont(font)
+        else:
+            # Reset to default font
+            from PySide6.QtGui import QFont
+            self.editor.setFont(QFont())
+
+        # Apply color settings
+        if not self._app_settings.use_default_colors:
+            if self._app_settings.doc_bg_color or self._app_settings.doc_text_color:
+                stylesheet = ""
+                if self._app_settings.doc_bg_color:
+                    stylesheet += f"background-color: {self._app_settings.doc_bg_color}; "
+                if self._app_settings.doc_text_color:
+                    stylesheet += f"color: {self._app_settings.doc_text_color}; "
+                self.editor.setStyleSheet(stylesheet)
+        else:
+            # Reset to default colors
+            self.editor.setStyleSheet("")
+
     def on_theme_changed(self, _idx: int) -> None:
         label = self.theme_combo.currentText().strip().lower()
         theme = {"system": "system", "light": "light", "dark": "dark"}.get(label, "system")
@@ -513,9 +544,17 @@ class MainWindow(QMainWindow):
         self.noise_w.setValue(new.noise_w)
         self._app_settings.rules = new.rules
         self._app_settings.auto_apply_rules = getattr(new, "auto_apply_rules", True)
+        # Update font/color settings
+        self._app_settings.font_family = new.font_family
+        self._app_settings.font_size = new.font_size
+        self._app_settings.use_default_font = new.use_default_font
+        self._app_settings.doc_bg_color = new.doc_bg_color
+        self._app_settings.doc_text_color = new.doc_text_color
+        self._app_settings.use_default_colors = new.use_default_colors
         if self._model_index and new.model_path:
             self._select_voice_by_path(new.model_path)
         self._apply_theme(new.theme)
+        self._apply_document_appearance()
         self._persist_app_settings()
         self._recompute_exclusions()
         self._apply_exclusion_formatting()
@@ -545,9 +584,17 @@ class MainWindow(QMainWindow):
         self.noise_w.setValue(new.noise_w)
         self._app_settings.rules = new.rules
         self._app_settings.auto_apply_rules = new.auto_apply_rules
+        # Update font/color settings
+        self._app_settings.font_family = new.font_family
+        self._app_settings.font_size = new.font_size
+        self._app_settings.use_default_font = new.use_default_font
+        self._app_settings.doc_bg_color = new.doc_bg_color
+        self._app_settings.doc_text_color = new.doc_text_color
+        self._app_settings.use_default_colors = new.use_default_colors
         if self._model_index and new.model_path:
             self._select_voice_by_path(new.model_path)
         self._apply_theme(new.theme)
+        self._apply_document_appearance()
         self._persist_app_settings()
         self._recompute_exclusions()
         self._apply_exclusion_formatting()

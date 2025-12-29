@@ -3,17 +3,21 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
+    QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFontComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QSpinBox,
     QTabWidget,
     QDoubleSpinBox,
     QVBoxLayout,
@@ -52,6 +56,61 @@ class PreferencesDialog(QDialog):
         self.show_selection_toolbar = QCheckBox("Show selection toolbar (Exclude/Include/Preview/Stop)")
         self.show_selection_toolbar.setChecked(bool(getattr(current, "show_selection_toolbar", True)))
         gf.addRow("Selection tools:", self.show_selection_toolbar)
+
+        # Font settings
+        self.use_default_font = QCheckBox("Use default font")
+        self.use_default_font.setChecked(current.use_default_font)
+        gf.addRow("", self.use_default_font)
+
+        font_row = QHBoxLayout()
+        self.font_family = QFontComboBox()
+        if current.font_family:
+            font = QFont(current.font_family)
+            self.font_family.setCurrentFont(font)
+        font_row.addWidget(self.font_family, 1)
+
+        self.font_size = QSpinBox()
+        self.font_size.setRange(6, 72)
+        self.font_size.setValue(current.font_size if current.font_size > 0 else 12)
+        self.font_size.setSuffix(" pt")
+        font_row.addWidget(self.font_size)
+        gf.addRow("Font:", font_row)
+
+        # Enable/disable font controls based on checkbox
+        def toggle_font_controls(checked: bool):
+            self.font_family.setEnabled(not checked)
+            self.font_size.setEnabled(not checked)
+        self.use_default_font.toggled.connect(toggle_font_controls)
+        toggle_font_controls(self.use_default_font.isChecked())
+
+        # Color settings
+        self.use_default_colors = QCheckBox("Use default colors")
+        self.use_default_colors.setChecked(current.use_default_colors)
+        gf.addRow("", self.use_default_colors)
+
+        self._bg_color = current.doc_bg_color or "#ffffff"
+        self._text_color = current.doc_text_color or "#000000"
+
+        color_row = QHBoxLayout()
+        self.btn_bg_color = QPushButton("Background")
+        self.btn_bg_color.clicked.connect(self._choose_bg_color)
+        self._update_color_button(self.btn_bg_color, self._bg_color)
+        color_row.addWidget(self.btn_bg_color)
+
+        self.btn_text_color = QPushButton("Text")
+        self.btn_text_color.clicked.connect(self._choose_text_color)
+        self._update_color_button(self.btn_text_color, self._text_color)
+        color_row.addWidget(self.btn_text_color)
+        color_row.addStretch(1)
+        gf.addRow("Colors:", color_row)
+
+        # Enable/disable color controls based on checkbox
+        def toggle_color_controls(checked: bool):
+            self.btn_bg_color.setEnabled(not checked)
+            self.btn_text_color.setEnabled(not checked)
+        self.use_default_colors.toggled.connect(toggle_color_controls)
+        toggle_color_controls(self.use_default_colors.isChecked())
+
         gl.addLayout(gf)
         gl.addStretch(1)
         self.tabs.addTab(general, "Appearance")
@@ -195,6 +254,35 @@ class PreferencesDialog(QDialog):
             QMessageBox.warning(self, "Piper not found", st.error or "`piper` not found on PATH.")
             return
         QMessageBox.information(self, "Piper OK", f"Found Piper at:\n{st.path}")
+
+    def _update_color_button(self, button: QPushButton, color_hex: str) -> None:
+        """Update button style to show the selected color."""
+        button.setStyleSheet(f"background-color: {color_hex}; color: {'#000000' if self._is_light_color(color_hex) else '#ffffff'};")
+
+    def _is_light_color(self, color_hex: str) -> bool:
+        """Check if a color is light (for contrast)."""
+        try:
+            color = QColor(color_hex)
+            # Calculate perceived brightness
+            brightness = (color.red() * 299 + color.green() * 587 + color.blue() * 114) / 1000
+            return brightness > 128
+        except Exception:
+            return True
+
+    def _choose_bg_color(self) -> None:
+        """Open color dialog for background color."""
+        color = QColorDialog.getColor(QColor(self._bg_color), self, "Choose Background Color")
+        if color.isValid():
+            self._bg_color = color.name()
+            self._update_color_button(self.btn_bg_color, self._bg_color)
+
+    def _choose_text_color(self) -> None:
+        """Open color dialog for text color."""
+        color = QColorDialog.getColor(QColor(self._text_color), self, "Choose Text Color")
+        if color.isValid():
+            self._text_color = color.name()
+            self._update_color_button(self.btn_text_color, self._text_color)
+
     def _apply_now(self) -> None:
         if self._apply_callback is None:
             return
@@ -225,4 +313,10 @@ class PreferencesDialog(QDialog):
             rules=self.rules_editor.rules(),
             auto_apply_rules=self.auto_apply_rules.isChecked(),
             show_selection_toolbar=self.show_selection_toolbar.isChecked(),
+            font_family=self.font_family.currentFont().family(),
+            font_size=int(self.font_size.value()),
+            use_default_font=self.use_default_font.isChecked(),
+            doc_bg_color=self._bg_color,
+            doc_text_color=self._text_color,
+            use_default_colors=self.use_default_colors.isChecked(),
         )

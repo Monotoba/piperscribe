@@ -37,6 +37,13 @@ class AppSettings:
     recent_projects: list[str] | None = None
     recent_files: list[str] | None = None
     show_selection_toolbar: bool = True
+    # Document appearance settings
+    font_family: str = ""
+    font_size: int = 0
+    use_default_font: bool = True
+    doc_bg_color: str = ""
+    doc_text_color: str = ""
+    use_default_colors: bool = True
 
     def __post_init__(self) -> None:
         if self.rules is None:
@@ -57,6 +64,12 @@ class AppSettings:
             "show_selection_toolbar": bool(self.show_selection_toolbar),
             "recent_files": list(self.recent_files or []),
             "recent_projects": list(self.recent_projects or []),
+            "font_family": str(self.font_family),
+            "font_size": int(self.font_size),
+            "use_default_font": bool(self.use_default_font),
+            "doc_bg_color": str(self.doc_bg_color),
+            "doc_text_color": str(self.doc_text_color),
+            "use_default_colors": bool(self.use_default_colors),
             "rules": [
                 {
                     "name": r.name,
@@ -83,6 +96,12 @@ class AppSettings:
         s.show_selection_toolbar = bool(d.get("show_selection_toolbar", True))
         s.recent_files = list(d.get("recent_files", []))
         s.recent_projects = list(d.get("recent_projects", []))
+        s.font_family = str(d.get("font_family", ""))
+        s.font_size = int(d.get("font_size", 0))
+        s.use_default_font = bool(d.get("use_default_font", True))
+        s.doc_bg_color = str(d.get("doc_bg_color", ""))
+        s.doc_text_color = str(d.get("doc_text_color", ""))
+        s.use_default_colors = bool(d.get("use_default_colors", True))
         rules_d = d.get("rules")
         if isinstance(rules_d, list):
             parsed: List[RegexRule] = []
