@@ -47,6 +47,17 @@ class RulesEditorWidget(QWidget):
         self.pattern = QPlainTextEdit()
         self.pattern.setPlaceholderText(r"Enter regex pattern…")
 
+        self.use_document_text = QCheckBox("Use document text")
+        self.use_document_text.setChecked(True)
+        self.use_document_text.toggled.connect(self._toggle_test_text_source)
+
+        self.test_text = QPlainTextEdit()
+        self.test_text.setPlaceholderText("Test text will appear here...")
+        self.test_text.setMaximumHeight(100)  # Approximately 4-5 lines
+        self.test_text.setReadOnly(True)  # Start as read-only when using document text
+        if self._text:
+            self.test_text.setPlainText(self._text)
+
         self.test_out = QPlainTextEdit()
         self.test_out.setReadOnly(True)
 
@@ -92,6 +103,10 @@ class RulesEditorWidget(QWidget):
         ryl.addWidget(QLabel("Pattern:"))
         ryl.addWidget(self.pattern, 2)
 
+        ryl.addWidget(self.use_document_text)
+        ryl.addWidget(QLabel("Test text:"))
+        ryl.addWidget(self.test_text)
+
         btnrow = QHBoxLayout()
         btnrow.addWidget(btn_test)
         btnrow.addStretch(1)
@@ -119,6 +134,9 @@ class RulesEditorWidget(QWidget):
 
     def set_document_text(self, text: str) -> None:
         self._text = text
+        # Update test text field if using document text
+        if self.use_document_text.isChecked():
+            self.test_text.setPlainText(text)
 
     def _rebuild_list(self) -> None:
         self.list.clear()
@@ -182,14 +200,27 @@ class RulesEditorWidget(QWidget):
         if self._rules:
             self.list.setCurrentRow(min(idx, len(self._rules) - 1))
 
+    def _toggle_test_text_source(self, checked: bool) -> None:
+        """Toggle between document text and custom test text."""
+        if checked:
+            # Use document text - make read-only and populate with document
+            self.test_text.setReadOnly(True)
+            self.test_text.setPlainText(self._text)
+        else:
+            # Use custom text - make editable
+            self.test_text.setReadOnly(False)
+            # Keep current text if any, otherwise clear
+
     def _test_current(self) -> None:
         self._save_selected()
         idx = self._idx()
         if idx < 0 or idx >= len(self._rules):
             return
         r = self._rules[idx]
+        # Get test text from the test_text field
+        test_text = self.test_text.toPlainText()
         try:
-            n, previews = test_rule(self._text, r)
+            n, previews = test_rule(test_text, r)
         except Exception as e:
             QMessageBox.critical(self, "Regex error", str(e))
             return
