@@ -301,7 +301,7 @@ class VoiceBrowserDialog(QDialog):
         self.progress_label.setVisible(False)
         self.btn_download.setEnabled(True)
         self.status_label.setText("Download complete!")
-        QMessageBox.information(self, "Success", "Voice model downloaded successfully!\n\nThe voice is now available in the Voice dropdown.")
+        QMessageBox.information(self, "Success", "Voice model downloaded successfully!\n\nClose this dialog to refresh the voice list in Preferences.")
 
     def _on_download_error(self, error: str):
         """Handle download error."""
