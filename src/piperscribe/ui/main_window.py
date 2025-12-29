@@ -119,6 +119,17 @@ class MainWindow(QMainWindow):
         m_file.addAction(act_export)
 
         m_file.addSeparator()
+
+        # Multi-document audio generation
+        act_generate_all = QAction("Generate All Audio", self)
+        act_generate_all.triggered.connect(self.on_generate_all_audio)
+        m_file.addAction(act_generate_all)
+
+        act_export_playlist = QAction("Export Playlist…", self)
+        act_export_playlist.triggered.connect(self.on_export_playlist)
+        m_file.addAction(act_export_playlist)
+
+        m_file.addSeparator()
         act_quit = QAction("Quit", self)
         act_quit.setShortcut("Ctrl+Q")
         act_quit.triggered.connect(self.close)
@@ -715,6 +726,204 @@ class MainWindow(QMainWindow):
         else:
             # Use temp directory for unsaved projects
             return Path(tempfile.gettempdir()) / "piperscribe_audio"
+
+    def on_generate_all_audio(self) -> None:
+        """Generate audio for all enabled documents in the project."""
+        enabled_docs = self.project.get_playlist_order()
+
+        if not enabled_docs:
+            QMessageBox.information(
+                self,
+                "No Documents",
+                "No enabled documents in project. Enable at least one document first."
+            )
+            return
+
+        if not self._ensure_piper_ready():
+            return
+
+        # Count documents that need audio generation
+        docs_to_generate = []
+        for doc in enabled_docs:
+            # Get text after exclusions
+            from piperscribe.model.spans import subtract_spans
+            text = subtract_spans(doc.text, doc.exclusions).strip()
+            if text:
+                docs_to_generate.append(doc)
+
+        if not docs_to_generate:
+            QMessageBox.information(
+                self,
+                "No Text",
+                "All enabled documents have no text or all text is excluded."
+            )
+            return
+
+        # Confirm generation
+        reply = QMessageBox.question(
+            self,
+            "Generate All Audio",
+            f"Generate audio for {len(docs_to_generate)} document(s)?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+
+        if reply != QMessageBox.Yes:
+            return
+
+        # Create audio directory
+        audio_dir = self._get_project_audio_dir()
+        audio_dir.mkdir(parents=True, exist_ok=True)
+
+        # Progress dialog
+        progress = QProgressDialog(
+            "Generating audio...",
+            "Cancel",
+            0,
+            len(docs_to_generate),
+            self
+        )
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+
+        # Generate audio for each document
+        from piperscribe.tts.piper import PiperTts
+        from piperscribe.model.spans import subtract_spans
+
+        success_count = 0
+        errors = []
+
+        for i, doc in enumerate(docs_to_generate):
+            if progress.wasCanceled():
+                break
+
+            progress.setLabelText(f"Generating audio for '{doc.title}'... ({i+1}/{len(docs_to_generate)})")
+            progress.setValue(i)
+
+            try:
+                # Get text after exclusions
+                text = subtract_spans(doc.text, doc.exclusions).strip()
+
+                # Generate filename
+                safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in doc.title)
+                safe_title = safe_title.strip().replace(' ', '-')[:50]
+                filename = f"{safe_title}-{doc.id[:8]}.wav"
+                output_path = audio_dir / filename
+
+                # Generate audio
+                tts = PiperTts(doc.piper)
+                tts.synthesize_to_wav(text, output_path)
+
+                # Update document metadata
+                doc.audio_path = str(output_path)
+                doc.audio_duration = len(text) / 150.0  # Rough estimate
+
+                success_count += 1
+
+            except Exception as e:
+                errors.append(f"{doc.title}: {e}")
+
+        progress.setValue(len(docs_to_generate))
+
+        # Update UI
+        self._rebuild_document_list()
+
+        # Show results
+        if errors:
+            error_msg = "\n".join(errors[:5])  # Show first 5 errors
+            if len(errors) > 5:
+                error_msg += f"\n... and {len(errors) - 5} more errors"
+
+            QMessageBox.warning(
+                self,
+                "Generation Completed with Errors",
+                f"Successfully generated: {success_count}/{len(docs_to_generate)}\n\n"
+                f"Errors:\n{error_msg}"
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Generation Complete",
+                f"Successfully generated audio for {success_count} document(s)."
+            )
+
+    def on_export_playlist(self) -> None:
+        """Export M3U and JSON playlists for the project."""
+        from piperscribe.audio.playlist import (
+            export_m3u_playlist,
+            export_json_playlist,
+            validate_playlist_export,
+            get_missing_audio_documents
+        )
+
+        # Validate project is ready for export
+        is_valid, error_msg = validate_playlist_export(self.project)
+        if not is_valid:
+            QMessageBox.warning(
+                self,
+                "Cannot Export Playlist",
+                error_msg
+            )
+            return
+
+        # Check for missing audio
+        missing = get_missing_audio_documents(self.project)
+        if missing:
+            reply = QMessageBox.question(
+                self,
+                "Missing Audio",
+                f"{len(missing)} enabled document(s) don't have audio:\n\n"
+                f"{', '.join(missing[:5])}"
+                f"{'...' if len(missing) > 5 else ''}\n\n"
+                f"Generate audio now?",
+                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel
+            )
+
+            if reply == QMessageBox.Yes:
+                self.on_generate_all_audio()
+                # Re-validate after generation
+                is_valid, error_msg = validate_playlist_export(self.project)
+                if not is_valid:
+                    return
+            elif reply == QMessageBox.Cancel:
+                return
+            # If No, continue with export of available audio
+
+        # Get export location
+        default_name = self.project.title or "playlist"
+        default_path = Path.home() / f"{default_name}.m3u"
+
+        path_str, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Playlist",
+            str(default_path),
+            "M3U Playlist (*.m3u);;All Files (*)"
+        )
+
+        if not path_str:
+            return
+
+        playlist_path = Path(path_str).with_suffix(".m3u")
+        json_path = playlist_path.with_suffix(".json")
+
+        try:
+            # Export both formats
+            export_m3u_playlist(self.project, playlist_path)
+            export_json_playlist(self.project, json_path)
+
+            QMessageBox.information(
+                self,
+                "Playlist Exported",
+                f"Playlist exported successfully:\n\n"
+                f"M3U: {playlist_path}\n"
+                f"JSON: {json_path}"
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Failed",
+                f"Failed to export playlist:\n\n{e}"
+            )
 
     def _sync_piper_settings_from_ui(self) -> None:
         mp = os.path.expanduser(self.model_path.text().strip())
