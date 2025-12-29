@@ -147,6 +147,10 @@ class MainWindow(QMainWindow):
         act_import_voice.triggered.connect(self.on_import_voice_model)
         m_tools.addAction(act_import_voice)
 
+        act_browse_voices = QAction("Browse && Download Voices…", self)
+        act_browse_voices.triggered.connect(self.on_browse_voices)
+        m_tools.addAction(act_browse_voices)
+
         # Dockable selection toolbar (toggle in Preferences → Appearance)
         self.selection_tb = QToolBar("Selection Tools", self)
         self.selection_tb.setMovable(True)
@@ -738,6 +742,26 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Import failed", str(e))
             return
         QMessageBox.information(self, "Imported", f"Imported voice model to:\n{dst}")
+
+    def on_browse_voices(self) -> None:
+        """Open the voice browser to download voices from repositories."""
+        from piperscribe.ui.voice_browser import VoiceBrowserDialog
+
+        dlg = VoiceBrowserDialog(self, self._app_settings.voice_repositories)
+        dlg.exec()
+
+        # Refresh voice list after dialog closes (in case new voices were downloaded)
+        self._model_index = iter_model_paths()
+        self.voice_combo.clear()
+        if not self._model_index:
+            self.voice_combo.addItem("(no voices found)")
+            self.voice_combo.setEnabled(False)
+        else:
+            self.voice_combo.setEnabled(True)
+            for p in self._model_index:
+                self.voice_combo.addItem(p.stem)
+            if self.project.piper.model_path:
+                self._select_voice_by_path(self.project.piper.model_path)
 
     def _open_document_path(self, path: str) -> None:
         # Placeholder: this method is referenced by recent-file menu.

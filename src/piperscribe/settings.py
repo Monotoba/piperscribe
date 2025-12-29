@@ -44,6 +44,8 @@ class AppSettings:
     doc_bg_color: str = ""
     doc_text_color: str = ""
     use_default_colors: bool = True
+    # Voice repositories
+    voice_repositories: list[str] | None = None
 
     def __post_init__(self) -> None:
         if self.rules is None:
@@ -52,6 +54,10 @@ class AppSettings:
             self.recent_files = []
         if self.recent_projects is None:
             self.recent_projects = []
+        if self.voice_repositories is None:
+            self.voice_repositories = [
+                "https://huggingface.co/rhasspy/piper-voices/raw/main/voices.json"
+            ]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -70,6 +76,7 @@ class AppSettings:
             "doc_bg_color": str(self.doc_bg_color),
             "doc_text_color": str(self.doc_text_color),
             "use_default_colors": bool(self.use_default_colors),
+            "voice_repositories": list(self.voice_repositories or []),
             "rules": [
                 {
                     "name": r.name,
@@ -102,6 +109,7 @@ class AppSettings:
         s.doc_bg_color = str(d.get("doc_bg_color", ""))
         s.doc_text_color = str(d.get("doc_text_color", ""))
         s.use_default_colors = bool(d.get("use_default_colors", True))
+        s.voice_repositories = list(d.get("voice_repositories", []))
         rules_d = d.get("rules")
         if isinstance(rules_d, list):
             parsed: List[RegexRule] = []
