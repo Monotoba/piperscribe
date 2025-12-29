@@ -53,7 +53,7 @@ class RulesEditorWidget(QWidget):
 
         self.test_text = QPlainTextEdit()
         self.test_text.setPlaceholderText("Test text will appear here...")
-        self.test_text.setMaximumHeight(100)  # Approximately 4-5 lines
+        self.test_text.setFixedHeight(80)  # Fixed height for 4-5 lines
         self.test_text.setReadOnly(True)  # Start as read-only when using document text
         if self._text:
             self.test_text.setPlainText(self._text)
@@ -101,11 +101,11 @@ class RulesEditorWidget(QWidget):
 
         ryl.addLayout(form)
         ryl.addWidget(QLabel("Pattern:"))
-        ryl.addWidget(self.pattern, 2)
+        ryl.addWidget(self.pattern, 1)
 
         ryl.addWidget(self.use_document_text)
         ryl.addWidget(QLabel("Test text:"))
-        ryl.addWidget(self.test_text)
+        ryl.addWidget(self.test_text, 0)
 
         btnrow = QHBoxLayout()
         btnrow.addWidget(btn_test)
