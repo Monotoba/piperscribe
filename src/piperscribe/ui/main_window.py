@@ -317,6 +317,18 @@ class MainWindow(QMainWindow):
         self.doc_list.currentItemChanged.connect(self._on_document_selected)
         self.doc_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.doc_list.customContextMenuRequested.connect(self._show_document_context_menu)
+
+        # Enable drag-and-drop reordering
+        self.doc_list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.doc_list.setDefaultDropAction(Qt.MoveAction)
+        self.doc_list.model().rowsMoved.connect(self._on_documents_reordered)
+
+        # Add tooltips
+        self.doc_list.setToolTip("Right-click for options. Drag to reorder. Delete to remove.")
+
+        # Install event filter for keyboard shortcuts
+        self.doc_list.installEventFilter(self)
+
         doc_list_layout.addWidget(self.doc_list, 1)
 
         # Document management buttons
@@ -478,6 +490,26 @@ class MainWindow(QMainWindow):
 
             item = QListWidgetItem(label)
             item.setData(Qt.UserRole, doc.id)
+
+            # Add detailed tooltip
+            tooltip_lines = [
+                f"Title: {doc.title}",
+                f"Enabled: {'Yes' if doc.enabled else 'No'}",
+                f"Audio: {'Generated' if doc.audio_path else 'Not generated'}",
+                f"Text length: {len(doc.text):,} chars",
+                f"Exclusions: {len(doc.exclusions)}",
+            ]
+            if doc.source_path:
+                tooltip_lines.append(f"Source: {doc.source_path}")
+            if doc.audio_path:
+                tooltip_lines.append(f"Audio: {doc.audio_path}")
+                if doc.audio_duration:
+                    mins = int(doc.audio_duration // 60)
+                    secs = int(doc.audio_duration % 60)
+                    tooltip_lines.append(f"Duration: {mins}:{secs:02d}")
+
+            item.setToolTip("\n".join(tooltip_lines))
+
             self.doc_list.addItem(item)
 
             # Restore selection
@@ -531,6 +563,47 @@ class MainWindow(QMainWindow):
         remove_action.triggered.connect(self.on_remove_document)
 
         menu.exec(self.doc_list.mapToGlobal(pos))
+
+    def _on_documents_reordered(self, parent, start, end, destination, row) -> None:
+        """Handle drag-and-drop reordering of documents."""
+        # Get the new order from the list widget
+        doc_ids = []
+        for i in range(self.doc_list.count()):
+            item = self.doc_list.item(i)
+            doc_id = item.data(Qt.UserRole)
+            doc_ids.append(doc_id)
+
+        # Update project document order
+        self.project.reorder_documents(doc_ids)
+
+    def eventFilter(self, obj, event) -> bool:
+        """Handle keyboard shortcuts for document list."""
+        if obj == self.doc_list and event.type() == event.Type.KeyPress:
+            # Delete key removes document
+            if event.key() == Qt.Key_Delete:
+                self.on_remove_document()
+                return True
+
+            # Ctrl+Up/Down moves document
+            if event.modifiers() == Qt.ControlModifier:
+                if event.key() == Qt.Key_Up:
+                    self.on_move_document_up()
+                    return True
+                elif event.key() == Qt.Key_Down:
+                    self.on_move_document_down()
+                    return True
+
+            # Space toggles enabled
+            if event.key() == Qt.Key_Space:
+                self.on_toggle_document_enabled()
+                return True
+
+            # Enter/Return opens settings
+            if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+                self.on_document_settings()
+                return True
+
+        return super().eventFilter(obj, event)
 
     def _get_current_document(self) -> Document | None:
         """Get the currently selected document."""
@@ -974,16 +1047,28 @@ class MainWindow(QMainWindow):
     def _update_stats(self) -> None:
         doc = self._get_current_document()
         if not doc:
-            self.stats.setText("")
+            # Show project-level stats when no document selected
+            enabled_count = len([d for d in self.project.documents if d.enabled])
+            audio_count = len([d for d in self.project.documents if d.audio_path])
+            self.stats.setText(f"Project: {len(self.project.documents)} docs | {enabled_count} enabled | {audio_count} with audio")
             return
 
+        # Show current document stats
         total = len(doc.text)
         excl = sum(max(0, s.end - s.start) for s in doc.exclusions)
         # Calculate included text length for current document
         from piperscribe.model.spans import subtract_spans
         incl_text = subtract_spans(doc.text, doc.exclusions).strip()
         incl = len(incl_text)
-        self.stats.setText(f"Chars: total={total} excluded={excl} included~={incl}")
+
+        # Add audio status
+        audio_status = "🔊" if doc.audio_path else "⚫"
+        enabled_status = "✓" if doc.enabled else "⨯"
+
+        self.stats.setText(
+            f"{enabled_status} {audio_status} {doc.title} | "
+            f"Chars: {total:,} total, {excl:,} excl, {incl:,} incl"
+        )
 
     # ---------------- Theme ----------------
 

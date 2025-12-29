@@ -66,12 +66,27 @@ When text is selected, use these actions from the toolbar:
 | **Ctrl+,** | Open Preferences | Open settings dialog |
 | **F1** | Help Contents | Open this help system |
 
+## Document Management
+
+| Shortcut | Action | Description |
+|----------|--------|-------------|
+| **Delete** | Remove Document | Delete selected document from project |
+| **Ctrl+Up** | Move Up | Move document up in playlist order |
+| **Ctrl+Down** | Move Down | Move document down in playlist order |
+| **Space** | Toggle Enabled | Enable/disable document in playlist |
+| **Enter** | Document Settings | Open settings for selected document |
+| **Drag & Drop** | Reorder | Drag documents to reorder playlist |
+
+*Note: Document management shortcuts work when document list has focus*
+
 ## Tools
 
 | Menu Item | Shortcut | Description |
 |-----------|----------|-------------|
 | **Rules** | *(none)* | Open regex rules editor |
 | **Browse & Download Voices** | *(none)* | Open voice browser |
+| **Generate All Audio** | *(none)* | Batch generate audio for all enabled documents |
+| **Export Playlist** | *(none)* | Export M3U and JSON playlists |
 
 ## Navigation
 

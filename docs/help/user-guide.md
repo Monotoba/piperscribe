@@ -1,5 +1,83 @@
 # PiperScribe User Guide
 
+## Multi-Document Projects
+
+### Managing Documents
+
+PiperScribe supports multiple documents in a single project, perfect for audiobooks, courses, or collections.
+
+**Document List** (left sidebar):
+- Shows all documents with status icons:
+  - ✓/⨯ = Enabled/Disabled in playlist
+  - 🔊/⚫ = Has audio/No audio
+- **Drag and drop** to reorder
+- **Right-click** for document options
+- **Hover** for detailed tooltip
+
+**Keyboard Shortcuts**:
+- **Delete** - Remove selected document
+- **Ctrl+Up/Down** - Move document up/down
+- **Space** - Toggle enabled/disabled
+- **Enter** - Open document settings
+
+### Adding Documents
+
+**File → Open** or **Ctrl+I** - Import document
+- Adds to current project (doesn't replace)
+- Supports: TXT, DOCX, PDF, Markdown
+- Each document gets unique ID
+
+**Add Button** - Create empty document
+- Manually add content later
+- Useful for organizing chapters
+
+### Per-Document Settings
+
+**Right-click document → Document Settings**:
+- **Title**: Rename document
+- **Voice Model**: Choose different voice per document
+- **Speed**: Adjust playback speed (0.1x - 3.0x)
+- **Noise Scale/W**: Voice quality parameters
+- **Test Voice**: Preview with sample text
+
+### Generating Audio
+
+**Single Document**:
+- Right-click → Generate Audio
+- Uses document's specific settings
+- Saves to `{project}_audio/` folder
+
+**Batch Generation**:
+- File → Generate All Audio
+- Processes all enabled documents
+- Shows progress with cancel option
+- Reports errors for individual documents
+
+### Playlist Management
+
+**Enable/Disable Documents**:
+- Right-click → Enable/Disable in Playlist
+- Or press **Space** on selected document
+- Disabled documents skip in playlist
+
+**Reorder Playlist**:
+- Drag documents to reorder
+- Or use Ctrl+Up/Down
+- Or use ↑↓ buttons
+- Order determines playback sequence
+
+**Export Playlist**:
+- File → Export Playlist
+- Exports both M3U and JSON formats
+- M3U: Works with VLC, mpv, etc.
+- JSON: Metadata for custom tools
+
+### Document Statistics
+
+Status bar shows:
+- **When document selected**: Document title, status icons, character counts
+- **When no selection**: Project stats (total docs, enabled, with audio)
+
 ## Document Editing
 
 ### Text Editor Features
