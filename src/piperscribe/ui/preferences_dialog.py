@@ -340,26 +340,32 @@ class PreferencesDialog(QDialog):
             except Exception:
                 pass
 
+    def _refresh_voice_list(self) -> None:
+        """Refresh the voice dropdown list."""
+        current_path = self.model_path.text().strip()
+        self._models = iter_model_paths()
+        self.voice.clear()
+        if not self._models:
+            self.voice.addItem("(no voices found)")
+            self.voice.setEnabled(False)
+        else:
+            self.voice.setEnabled(True)
+            for p in self._models:
+                self.voice.addItem(p.stem)
+            # Try to reselect current voice
+            if current_path:
+                self._sync_voice_from_path(current_path)
+
     def _browse_voices(self) -> None:
         """Open voice browser dialog."""
         from piperscribe.ui.voice_browser import VoiceBrowserDialog
 
         dlg = VoiceBrowserDialog(self, self._current.voice_repositories)
-        if dlg.exec() == dlg.Accepted or True:  # Always refresh after closing
-            # Refresh voice list
-            self._models = iter_model_paths()
-            self.voice.clear()
-            if not self._models:
-                self.voice.addItem("(no voices found)")
-                self.voice.setEnabled(False)
-            else:
-                self.voice.setEnabled(True)
-                for p in self._models:
-                    self.voice.addItem(p.stem)
-                # Try to reselect current voice
-                current_path = self.model_path.text().strip()
-                if current_path:
-                    self._sync_voice_from_path(current_path)
+        # Connect signal to refresh voice list immediately when download completes
+        dlg.voice_downloaded.connect(self._refresh_voice_list)
+        # Also refresh when dialog closes in case user downloaded multiple voices
+        if dlg.exec() == dlg.Accepted or True:
+            self._refresh_voice_list()
 
     def _delete_voice(self) -> None:
         """Delete the selected voice model."""
@@ -397,17 +403,9 @@ class PreferencesDialog(QDialog):
 
             QMessageBox.information(self, "Voice Deleted", f"Voice '{voice_name}' has been deleted.")
 
-            # Refresh voice list
-            self._models = iter_model_paths()
-            self.voice.clear()
+            # Clear current selection and refresh voice list
             self.model_path.clear()
-            if not self._models:
-                self.voice.addItem("(no voices found)")
-                self.voice.setEnabled(False)
-            else:
-                self.voice.setEnabled(True)
-                for p in self._models:
-                    self.voice.addItem(p.stem)
+            self._refresh_voice_list()
 
         except Exception as e:
             QMessageBox.critical(self, "Delete Failed", f"Failed to delete voice:\n{e}")

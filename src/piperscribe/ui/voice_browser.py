@@ -85,6 +85,8 @@ class VoiceDownloadThread(QThread):
 class VoiceBrowserDialog(QDialog):
     """Dialog for browsing and downloading Piper TTS voices."""
 
+    voice_downloaded = Signal()  # Emitted when a voice download completes
+
     def __init__(self, parent, voice_repos: list[str]):
         super().__init__(parent)
         self.setWindowTitle("Voice Browser — PiperScribe")
@@ -301,7 +303,11 @@ class VoiceBrowserDialog(QDialog):
         self.progress_label.setVisible(False)
         self.btn_download.setEnabled(True)
         self.status_label.setText("Download complete!")
-        QMessageBox.information(self, "Success", "Voice model downloaded successfully!\n\nClose this dialog to refresh the voice list in Preferences.")
+
+        # Emit signal to notify parent dialog to refresh voice list
+        self.voice_downloaded.emit()
+
+        QMessageBox.information(self, "Success", "Voice model downloaded successfully!\n\nThe voice is now available in the Voice dropdown.")
 
     def _on_download_error(self, error: str):
         """Handle download error."""
