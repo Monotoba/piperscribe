@@ -37,9 +37,9 @@ class PreferencesDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Preferences — PiperScribe")
         self.setModal(True)
-        # Set reasonable size constraints to prevent dialog from becoming too tall
-        self.resize(800, 600)
-        self.setMaximumHeight(700)
+        # Set conservative size constraints to fit on smaller screens
+        self.resize(750, 500)
+        self.setMaximumHeight(550)
 
         self._text = document_text
         self._apply_callback = apply_callback
