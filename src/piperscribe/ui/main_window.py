@@ -5,7 +5,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QProcess, QTimer
+from PySide6.QtCore import Qt, QProcess, QTimer, QPoint
 from PySide6.QtGui import QAction, QTextCharFormat, QTextCursor, QPalette, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QDoubleSpinBox,
@@ -303,6 +304,8 @@ class MainWindow(QMainWindow):
         self.doc_list = QListWidget()
         self.doc_list.setSelectionMode(QAbstractItemView.SingleSelection)
         self.doc_list.currentItemChanged.connect(self._on_document_selected)
+        self.doc_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.doc_list.customContextMenuRequested.connect(self._show_document_context_menu)
         doc_list_layout.addWidget(self.doc_list, 1)
 
         # Document management buttons
@@ -485,6 +488,39 @@ class MainWindow(QMainWindow):
         self.btn_move_up.setEnabled(has_selection and self.doc_list.currentRow() > 0)
         self.btn_move_down.setEnabled(has_selection and self.doc_list.currentRow() < self.doc_list.count() - 1)
 
+    def _show_document_context_menu(self, pos: QPoint) -> None:
+        """Show context menu for document list."""
+        item = self.doc_list.itemAt(pos)
+        if not item:
+            return
+
+        menu = QMenu(self)
+
+        # Document Settings action
+        settings_action = menu.addAction("Document Settings...")
+        settings_action.triggered.connect(self.on_document_settings)
+
+        menu.addSeparator()
+
+        # Generate Audio action
+        generate_action = menu.addAction("Generate Audio")
+        generate_action.triggered.connect(self.on_generate_document_audio)
+
+        # Toggle Enabled action
+        doc = self._get_current_document()
+        if doc:
+            toggle_text = "Disable" if doc.enabled else "Enable"
+            toggle_action = menu.addAction(f"{toggle_text} in Playlist")
+            toggle_action.triggered.connect(self.on_toggle_document_enabled)
+
+        menu.addSeparator()
+
+        # Remove action
+        remove_action = menu.addAction("Remove Document")
+        remove_action.triggered.connect(self.on_remove_document)
+
+        menu.exec(self.doc_list.mapToGlobal(pos))
+
     def _get_current_document(self) -> Document | None:
         """Get the currently selected document."""
         current_item = self.doc_list.currentItem()
@@ -577,6 +613,108 @@ class MainWindow(QMainWindow):
         self.project.reorder_documents(doc_ids)
         self._rebuild_document_list()
         self.doc_list.setCurrentRow(current_row + 1)
+
+    def on_document_settings(self) -> None:
+        """Open settings dialog for the currently selected document."""
+        doc = self._get_current_document()
+        if not doc:
+            return
+
+        from piperscribe.ui.document_settings_dialog import DocumentSettingsDialog
+
+        dlg = DocumentSettingsDialog(self, doc)
+        if dlg.exec() == dlg.Accepted:
+            dlg.apply_settings()
+            self._rebuild_document_list()
+
+    def on_toggle_document_enabled(self) -> None:
+        """Toggle the enabled state of the currently selected document."""
+        doc = self._get_current_document()
+        if not doc:
+            return
+
+        doc.enabled = not doc.enabled
+        self._rebuild_document_list()
+
+    def on_generate_document_audio(self) -> None:
+        """Generate audio for the currently selected document."""
+        doc = self._get_current_document()
+        if not doc:
+            return
+
+        if not self._ensure_piper_ready():
+            return
+
+        # Get text to synthesize (after exclusions)
+        from piperscribe.model.spans import subtract_spans
+        text = subtract_spans(doc.text, doc.exclusions).strip()
+
+        if not text:
+            QMessageBox.information(
+                self,
+                "No Text",
+                "Document has no text to generate audio for (all text is excluded)."
+            )
+            return
+
+        # Create audio directory
+        audio_dir = self._get_project_audio_dir()
+        audio_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate filename: sanitized-title-{doc_id[:8]}.wav
+        safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in doc.title)
+        safe_title = safe_title.strip().replace(' ', '-')[:50]  # Limit length
+        filename = f"{safe_title}-{doc.id[:8]}.wav"
+        output_path = audio_dir / filename
+
+        # Generate audio
+        try:
+            from piperscribe.tts.piper import PiperTts
+
+            progress = QProgressDialog(
+                f"Generating audio for '{doc.title}'...",
+                "Cancel",
+                0,
+                0,
+                self
+            )
+            progress.setWindowModality(Qt.WindowModal)
+            progress.show()
+
+            tts = PiperTts(doc.piper)
+            tts.synthesize_to_wav(text, output_path)
+
+            # Update document metadata
+            doc.audio_path = str(output_path)
+
+            # Get audio duration (simple estimate: ~150 chars per second of speech)
+            doc.audio_duration = len(text) / 150.0
+
+            progress.close()
+
+            self._rebuild_document_list()
+
+            QMessageBox.information(
+                self,
+                "Audio Generated",
+                f"Audio saved to:\n{output_path}"
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Generation Failed",
+                f"Failed to generate audio:\n\n{e}"
+            )
+
+    def _get_project_audio_dir(self) -> Path:
+        """Get the audio directory for the current project."""
+        if hasattr(self, 'current_project_path') and self.current_project_path:
+            # Create audio directory next to project file
+            project_path = Path(self.current_project_path)
+            return project_path.parent / f"{project_path.stem}_audio"
+        else:
+            # Use temp directory for unsaved projects
+            return Path(tempfile.gettempdir()) / "piperscribe_audio"
 
     def _sync_piper_settings_from_ui(self) -> None:
         mp = os.path.expanduser(self.model_path.text().strip())
