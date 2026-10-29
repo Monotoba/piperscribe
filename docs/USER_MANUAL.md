@@ -129,8 +129,9 @@ to the project file, or in the **Audio folder** you set in Preferences. A projec
 that has never been saved has no project folder, so its audio goes into a
 temporary folder that the system may clear.
 
-If you quit while audio is only in the temporary folder, PiperScribe warns you
-first. You can save the audio to a folder, quit anyway, or cancel and keep working.
+If audio is only in the temporary folder, PiperScribe warns you before you quit,
+start a new project, close the project, or open another project. You can save the
+audio to a folder, discard it, or cancel and keep working.
 Use **File → Save Audio to Folder…** at any time to copy the audio somewhere permanent.
 
 ## 5. Importing documents

@@ -1008,30 +1008,37 @@ class MainWindow(QMainWindow):
         )
         return dest
 
-    def closeEvent(self, event: QCloseEvent) -> None:
-        """Warn before quitting when generated audio would be lost."""
+    def _confirm_temp_audio_before(self, action: str) -> bool:
+        """Warn when generated audio exists only in the temp folder.
+
+        Returns True when it is safe to continue with ``action``: nothing is at
+        risk, the user chose to discard it, or the user saved it to a folder.
+        Returns False when the user cancelled.
+        """
         at_risk = self._temp_audio_docs()
-        if at_risk:
-            box = QMessageBox(self)
-            box.setIcon(QMessageBox.Warning)
-            box.setWindowTitle("Generated audio not saved")
-            box.setText(
-                f"{len(at_risk)} audio file(s) are only in the temporary folder, "
-                "and the system may delete them."
-            )
-            box.setInformativeText("Save them to a folder before you quit?")
-            save_btn = box.addButton("Save Audio to Folder…", QMessageBox.AcceptRole)
-            quit_btn = box.addButton("Quit Without Saving", QMessageBox.DestructiveRole)
-            box.addButton("Cancel", QMessageBox.RejectRole)
-            box.exec()
-            clicked = box.clickedButton()
-            if clicked is save_btn:
-                if self.on_save_audio_to_folder() is None:
-                    event.ignore()
-                    return
-            elif clicked is not quit_btn:
-                event.ignore()
-                return
+        if not at_risk:
+            return True
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle("Generated audio not saved")
+        box.setText(
+            f"{len(at_risk)} audio file(s) are only in the temporary folder, "
+            "and the system may delete them."
+        )
+        box.setInformativeText(f"Save them to a folder before you {action}?")
+        save_btn = box.addButton("Save Audio to Folder…", QMessageBox.AcceptRole)
+        discard_btn = box.addButton("Discard Audio", QMessageBox.DestructiveRole)
+        box.addButton("Cancel", QMessageBox.RejectRole)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is save_btn:
+            return self.on_save_audio_to_folder() is not None
+        return clicked is discard_btn
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        if not self._confirm_temp_audio_before("quit"):
+            event.ignore()
+            return
         super().closeEvent(event)
 
     def _bundle_audio_files(self, project_path: Path) -> None:
@@ -1579,6 +1586,8 @@ class MainWindow(QMainWindow):
             self.editor.find(needle, QTextDocument.FindBackward)
 
     def on_new_project(self) -> None:
+        if not self._confirm_temp_audio_before("start a new project"):
+            return
         # Start a new empty project (in-memory) with one empty document
         saved_piper = PiperSettings.from_dict(self.project.piper.as_dict())
         doc = Document(
@@ -1673,6 +1682,8 @@ class MainWindow(QMainWindow):
         p = Path(path)
         if not p.exists():
             QMessageBox.warning(self, "Missing file", f"Project not found:\n{path}")
+            return
+        if not self._confirm_temp_audio_before("open another project"):
             return
         self._load_project_from_path(str(p))
         self._push_recent_project(str(p))
@@ -1844,6 +1855,8 @@ class MainWindow(QMainWindow):
             "Audiobook Project (*.abproj.json *.json);;All files (*)",
         )
         if not path_str:
+            return
+        if not self._confirm_temp_audio_before("open another project"):
             return
         path = Path(path_str)
         try:

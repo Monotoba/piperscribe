@@ -14,7 +14,7 @@
 - A user manual (`docs/USER_MANUAL.md`), a license, and a contributing guide.
 - **Audio folder** setting in **Preferences → Voice**. Generated audio is saved there, so it doesn't depend on the project being saved first.
 - **File → Save Audio to Folder…** copies every document's audio into a folder you name.
-- PiperScribe warns you before quitting when audio exists only in the temporary folder. You can save it, quit anyway, or cancel.
+- PiperScribe warns you before quitting, starting a new project, or opening another project when audio exists only in the temporary folder. You can save it, discard it, or cancel.
 - **Help → Help Contents…** now includes the User Manual.
 
 ### Changed
