@@ -9,15 +9,15 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
-    QDoubleSpinBox,
-    QVBoxLayout,
     QMessageBox,
+    QPushButton,
+    QVBoxLayout,
 )
 
 from piperscribe.settings import AppSettings

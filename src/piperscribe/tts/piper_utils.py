@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-
 DEFAULT_VOICE_DIRS = [
     Path("~/.local/share/piper/voices").expanduser(),
     Path("~/share/piper/voices").expanduser(),

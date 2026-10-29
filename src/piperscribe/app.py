@@ -9,9 +9,14 @@ import sys
 # popups to jump to the right (e.g., File opening under Tools).
 os.environ["QT_WAYLAND_FRACTIONAL_SCALE"] = "0"
 
-from PySide6.QtWidgets import QApplication # noqa: E402
-from piperscribe.hidpi import clamp_after_show, prepare_qt_hidpi, restore_or_clamp_window # noqa: E402
-from piperscribe.ui.main_window import MainWindow, MenuOffsetStyle # noqa: E402
+from PySide6.QtWidgets import QApplication
+
+from piperscribe.hidpi import (
+    clamp_after_show,
+    prepare_qt_hidpi,
+    restore_or_clamp_window,
+)
+from piperscribe.ui.main_window import MainWindow, MenuOffsetStyle
 
 
 def main() -> None:

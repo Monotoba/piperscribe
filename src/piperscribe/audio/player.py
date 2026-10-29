@@ -7,7 +7,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-
 # Setting values. Empty means "detect now and save the result". AUTO means
 # "detect on every run and never save". A saved name that is missing from this
 # system is re-detected and replaced.

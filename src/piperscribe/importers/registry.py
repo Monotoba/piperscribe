@@ -3,12 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List
 
-from .base import ImportResult, Importer
-from .txt import TxtImporter
+from .base import Importer, ImportResult
 from .docx import DocxImporter
-from .markdown import MarkdownImporter
 from .html import HtmlImporter
+from .markdown import MarkdownImporter
 from .pdf import PdfImporter
+from .txt import TxtImporter
 
 
 def default_importers() -> List[Importer]:

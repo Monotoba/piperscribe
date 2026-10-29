@@ -10,20 +10,20 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDoubleSpinBox,
     QFileDialog,
     QFontComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSpinBox,
     QTabWidget,
-    QDoubleSpinBox,
     QVBoxLayout,
     QWidget,
-    QMessageBox,
 )
 
 from piperscribe.audio.player import AUTO, build_command, player_names, resolve_player

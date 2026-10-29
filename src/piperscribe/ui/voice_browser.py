@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Dict
 
@@ -17,8 +17,8 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMessageBox,
-    QPushButton,
     QProgressBar,
+    QPushButton,
     QSplitter,
     QTextEdit,
     QVBoxLayout,

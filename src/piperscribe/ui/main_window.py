@@ -6,15 +6,22 @@ import os
 import tempfile
 from pathlib import Path
 
-
-from PySide6.QtCore import Qt, QProcess, QPoint, QUrl
-from PySide6.QtGui import QAction, QCloseEvent, QTextCharFormat, QTextCursor, QPalette, QColor
-from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
+from PySide6.QtCore import QPoint, QProcess, Qt, QUrl
+from PySide6.QtGui import (
+    QAction,
+    QCloseEvent,
+    QColor,
+    QPalette,
+    QTextCharFormat,
+    QTextCursor,
+)
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
     QDialog,
+    QDoubleSpinBox,
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
@@ -25,27 +32,30 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QProgressDialog,
+    QProxyStyle,
     QPushButton,
-    QDoubleSpinBox,
     QSplitter,
     QStyle,
-    QProxyStyle,
     QTextEdit,
     QToolBar,
     QVBoxLayout,
     QWidget,
-    QProgressDialog,
 )
 
 from piperscribe.audio.player import build_command, resolve_player
 from piperscribe.hidpi import clamp_after_show, clamp_window_to_screen
 from piperscribe.importers.registry import import_any
 from piperscribe.model.document import Document, DocumentProject, PiperSettings
-from piperscribe.tts.piper_job import PiperRun
 from piperscribe.model.spans import Span, normalize_spans
 from piperscribe.rules import apply_rules
-from piperscribe.tts.piper_utils import check_piper_installed, iter_model_paths, choose_default_model
 from piperscribe.settings import AppSettings, load_settings, save_settings
+from piperscribe.tts.piper_job import PiperRun
+from piperscribe.tts.piper_utils import (
+    check_piper_installed,
+    choose_default_model,
+    iter_model_paths,
+)
 from piperscribe.ui.preferences_dialog import PreferencesDialog
 
 
@@ -1370,10 +1380,10 @@ class MainWindow(QMainWindow):
     def on_export_playlist(self) -> None:
         """Export M3U and JSON playlists for the project."""
         from piperscribe.audio.playlist import (
-            export_m3u_playlist,
             export_json_playlist,
+            export_m3u_playlist,
+            get_missing_audio_documents,
             validate_playlist_export,
-            get_missing_audio_documents
         )
 
         # Validate project is ready for export

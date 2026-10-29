@@ -8,7 +8,6 @@ from typing import Any, Dict, List
 
 from piperscribe.rules import RegexRule, canned_rules
 
-
 APP_ID = "piperscribe"
 SETTINGS_FILENAME = "settings.json"
 
