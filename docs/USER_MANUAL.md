@@ -82,7 +82,8 @@ The main window has four areas:
 
 - **Document list (left).** Every document in the project. Click a document to
   show its text. Drag rows to reorder them. Each row shows two marks: ✓ or ⨯
-  for enabled or disabled in the playlist, and 🔊 or ⚫ for has audio or no audio.
+  for enabled or disabled in the playlist, 🔊 for audio that is current, ↻ for audio made from an older voice, speed, or text
+  (it regenerates on Play), and ⚫ for no audio yet.
 - **Text editor (centre).** The text of the selected document. Text you have
   excluded is shaded so you can see what will not be spoken.
 - **Selection toolbar.** Appears when you select text. It has the actions
@@ -304,6 +305,9 @@ The audio toolbar controls playback of a document's generated audio:
 - **▶ Play** starts the current document. If it has no audio, it is generated first.
 - **⏸ Pause** pauses playback. Play then changes to **▶ Resume**.
 - **⏹ Stop** stops playback.
+
+Changing the voice or speed while audio plays stops the playback. Press Play again
+to hear the new audio.
 
 Playback of a whole project is not automatic. Play each document in turn, or
 export a playlist and play it with another player.

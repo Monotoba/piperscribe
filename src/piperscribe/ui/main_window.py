@@ -502,6 +502,8 @@ class MainWindow(QMainWindow):
         for doc in self.project.documents:
             if not doc.piper.model_path or doc.piper.model_path == previous:
                 doc.piper.model_path = chosen
+        self._stop_playback_if_stale()
+        self._refresh_document_icons()
         self._persist_app_settings()
 
     def _refresh_view(self) -> None:
@@ -555,7 +557,18 @@ class MainWindow(QMainWindow):
         before = (self.project.piper.length_scale, self.project.piper.noise_scale, self.project.piper.noise_w)
         self._sync_piper_settings_from_ui()
         self._follow_project_settings(before)
+        self._stop_playback_if_stale()
+        self._refresh_document_icons()
         self._persist_app_settings()
+
+    def _stop_playback_if_stale(self) -> None:
+        """Stop playback when the current document's audio no longer matches its voice and text.
+
+        Otherwise the old audio keeps playing until the user presses Play again.
+        """
+        doc = self._get_current_document()
+        if doc and self._player.playbackState() != QMediaPlayer.StoppedState and not self._audio_is_current(doc):
+            self._player.stop()
 
     def _follow_project_settings(self, before: tuple[float, float, float]) -> None:
         """Move speed and noise on documents that still use the previous project values.
@@ -598,6 +611,29 @@ class MainWindow(QMainWindow):
         else:
             self.on_stop_audio()
 
+    def _audio_state(self, doc) -> tuple[str, str]:
+        """Icon and tooltip text for a document's audio: 🔊 current, ↻ out of date, ⚫ none."""
+        if not doc.audio_path:
+            return "⚫", "Not generated"
+        if self._audio_is_current(doc):
+            return "🔊", "Generated"
+        return "↻", "Generated, out of date (regenerates on Play)"
+
+    def _refresh_document_icons(self) -> None:
+        """Update the audio icon and tooltip of each row without rebuilding the list.
+
+        Rebuilding would reset the selection and reload the editor, which is wrong when
+        a setting changes while the user is editing.
+        """
+        for i in range(self.doc_list.count()):
+            item = self.doc_list.item(i)
+            doc = self.project.get_document(item.data(Qt.UserRole))
+            if doc is None:
+                continue
+            enabled_icon = "✓" if doc.enabled else "⨯"
+            audio_icon, _ = self._audio_state(doc)
+            item.setText(f"{enabled_icon} {audio_icon} {doc.title}")
+
     def _rebuild_document_list(self) -> None:
         """Rebuild the document list with status icons."""
         current_id = None
@@ -610,7 +646,7 @@ class MainWindow(QMainWindow):
         for doc in self.project.documents:
             # Status icons
             enabled_icon = "✓" if doc.enabled else "⨯"
-            audio_icon = "🔊" if doc.audio_path else "⚫"
+            audio_icon, audio_text = self._audio_state(doc)
 
             # Display format: [enabled] [audio] Title
             label = f"{enabled_icon} {audio_icon} {doc.title}"
@@ -622,7 +658,7 @@ class MainWindow(QMainWindow):
             tooltip_lines = [
                 f"Title: {doc.title}",
                 f"Enabled: {'Yes' if doc.enabled else 'No'}",
-                f"Audio: {'Generated' if doc.audio_path else 'Not generated'}",
+                f"Audio: {audio_text}",
                 f"Text length: {len(doc.text):,} chars",
                 f"Exclusions: {len(doc.exclusions)}",
             ]

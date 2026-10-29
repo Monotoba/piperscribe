@@ -6,6 +6,7 @@
 - The install scripts (Linux, macOS, Windows) choose the WAV player for your system and save it in **Preferences → Voice**. The new step is number 4 of 5.
 
 ### Changed
+- The document list marks audio that is out of date with ↻. Changing the voice or speed while audio plays stops the playback.
 - Install-script warnings that said Preview needs `aplay` are removed. `INSTALL.md` describes the current player behavior.
 
 ### Fixed
