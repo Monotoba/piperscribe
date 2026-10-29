@@ -1,5 +1,10 @@
 # PiperScribe
 
+[![CI](https://github.com/Monotoba/piperscribe/actions/workflows/ci.yml/badge.svg)](https://github.com/Monotoba/piperscribe/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Monotoba/piperscribe?label=release)](https://github.com/Monotoba/piperscribe/releases/latest)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
+[![License: PAL 1.0](https://img.shields.io/badge/license-PAL%201.0-blue)](LICENSE)
+
 PiperScribe is a desktop app for turning documents into speech. It uses
 [Piper TTS](https://github.com/rhasspy/piper) to generate audio, so it runs
 offline, and it is built with PySide6 (Qt 6).
