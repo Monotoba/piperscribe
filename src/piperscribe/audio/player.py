@@ -107,3 +107,27 @@ def resolve_player(setting: str, platform: str | None = None) -> Resolution:
 
 def build_command(spec: PlayerSpec, wav_path: Path) -> list[str]:
     return [*spec.command, str(wav_path)]
+
+
+def record_player_at_install() -> str | None:
+    """Pick the WAV player for this system and save it, as the install scripts do.
+
+    Returns the player name, or None if no player was found. A player the user
+    already chose is kept.
+    """
+    from piperscribe.settings import load_settings, save_settings
+
+    settings = load_settings()
+    resolution = resolve_player(settings.audio_player)
+    if resolution.save_as is not None:
+        settings.audio_player = resolution.save_as
+        save_settings(settings)
+    return resolution.spec.name if resolution.spec else None
+
+
+if __name__ == "__main__":
+    name = record_player_at_install()
+    if name:
+        print(f"Audio player: {name}")
+    else:
+        print("No audio player found. Install one, or choose it in Preferences → Voice.")

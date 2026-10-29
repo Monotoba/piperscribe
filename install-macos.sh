@@ -51,7 +51,7 @@ find_python() {
 VENV_DIR=".venv"
 VENV_PY="$VENV_DIR/bin/python"
 
-info "[1/4] Python environment"
+info "[1/5] Python environment"
 if [[ -x "$VENV_PY" ]]; then
   info "Reusing existing $VENV_DIR"
 elif command -v uv >/dev/null 2>&1; then
@@ -63,7 +63,7 @@ else
   "$PY" -m venv "$VENV_DIR"
 fi
 
-info "[2/4] Installing PiperScribe (editable, extras: $EXTRAS)"
+info "[2/5] Installing PiperScribe (editable, extras: $EXTRAS)"
 if command -v uv >/dev/null 2>&1; then
   uv pip install --python "$VENV_PY" -e ".[$EXTRAS]"
 else
@@ -71,20 +71,23 @@ else
   "$VENV_PY" -m pip install -e ".[$EXTRAS]"
 fi
 
-info "[3/4] Checking tools"
+info "[3/5] Checking tools"
 if command -v piper >/dev/null 2>&1; then
   info "Found piper: $(command -v piper)"
 else
   warn "'piper' is not on PATH. The app opens without it, but Preview and Export need it."
   warn "Install Piper from https://github.com/rhasspy/piper/releases and put it on PATH."
 fi
-warn "Known limitation: the main-window Preview button and the Voice tab's Test Selected Voice play audio through 'aplay', which macOS does not have. Export WAV and Document Settings > Test Voice still work."
 
 VOICE_DIR="$HOME/.local/share/piper/voices"
 mkdir -p "$VOICE_DIR"
 info "Voice folder: $VOICE_DIR"
 
-info "[4/4] Verifying the install"
+info "[4/5] Choosing the audio player"
+"$VENV_PY" -m piperscribe.audio.player \
+  || warn "Could not choose an audio player. You can choose one later in Preferences → Voice."
+
+info "[5/5] Verifying the install"
 "$VENV_PY" -c 'import PySide6, piperscribe.ui.main_window' \
   || die "PiperScribe failed to import. See the error above."
 

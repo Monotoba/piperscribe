@@ -33,11 +33,15 @@ Verify:
 piper --help
 ```
 
-## Linux audio preview
-Preview uses `aplay` (ALSA). Install if missing:
+## Audio player
+The install script picks a WAV player for your system and saves it in
+**Preferences → Voice** (step 4 of the install). It looks for `aplay`, `pw-play`,
+`paplay`, or `ffplay` on Linux, `afplay` on macOS, and the built-in player on
+Windows. If none is found, install one. On Debian or Ubuntu:
 ```bash
 sudo apt-get install alsa-utils
 ```
+To change it later, choose a player in **Preferences → Voice**.
 
 ## Voice selection
 The app will try to discover Piper voices in common directories (e.g. `~/.local/share/piper/voices`).

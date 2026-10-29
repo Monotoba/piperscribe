@@ -73,7 +73,7 @@ try {
     $VenvPy  = Join-Path $VenvDir 'Scripts\python.exe'
     $HasUv   = [bool](Get-Command uv -ErrorAction SilentlyContinue)
 
-    Write-Info '[1/4] Python environment'
+    Write-Info '[1/5] Python environment'
     if (Test-Path -LiteralPath $VenvPy) {
         Write-Info 'Reusing existing .venv'
     } elseif ($HasUv) {
@@ -88,7 +88,7 @@ try {
         Invoke-Native $py.Exe (@($py.Prefix) + @('-m', 'venv', $VenvDir))
     }
 
-    Write-Info "[2/4] Installing PiperScribe (editable, extras: $Extras)"
+    Write-Info "[2/5] Installing PiperScribe (editable, extras: $Extras)"
     if ($HasUv) {
         Invoke-Native 'uv' @('pip', 'install', '--python', $VenvPy, '-e', ".[$Extras]")
     } else {
@@ -96,7 +96,7 @@ try {
         Invoke-Native $VenvPy @('-m', 'pip', 'install', '-e', ".[$Extras]")
     }
 
-    Write-Info '[3/4] Checking tools'
+    Write-Info '[3/5] Checking tools'
     $piper = Get-Command piper -ErrorAction SilentlyContinue
     if ($piper) {
         Write-Info "Found piper: $($piper.Source)"
@@ -104,13 +104,19 @@ try {
         Write-Warn "'piper' is not on PATH. The app opens without it, but Preview and Export need it."
         Write-Warn 'Install Piper from https://github.com/rhasspy/piper/releases and add its folder to PATH.'
     }
-    Write-Warn 'Known limitation: the main-window Preview button and the Voice tab Test button play audio through aplay, which Windows does not have. Export WAV and Document Settings > Test Voice still work.'
 
     $VoiceDir = Join-Path $HOME '.local\share\piper\voices'
     New-Item -ItemType Directory -Force -Path $VoiceDir | Out-Null
     Write-Info "Voice folder: $VoiceDir"
 
-    Write-Info '[4/4] Verifying the install'
+    Write-Info '[4/5] Choosing the audio player'
+    try {
+        Invoke-Native $VenvPy @('-m', 'piperscribe.audio.player')
+    } catch {
+        Write-Warn 'Could not choose an audio player. You can choose one later in Preferences > Voice.'
+    }
+
+    Write-Info '[5/5] Verifying the install'
     Invoke-Native $VenvPy @('-c', 'import PySide6, piperscribe.ui.main_window')
 
     Write-Info 'Done. Start PiperScribe with:'
