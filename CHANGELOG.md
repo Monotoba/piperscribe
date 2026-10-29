@@ -10,6 +10,7 @@
 - Install-script warnings that said Preview needs `aplay` are removed. `INSTALL.md` describes the current player behavior.
 
 ### Fixed
+- Selecting a document only highlights it. It no longer starts playback, and it stops audio from the previous selection.
 - Generating audio no longer starts playback by itself. The document list rebuilt after each generation re-selected the document, which started its audio and could overwrite the file while it played.
 - Closing the window during Preview, Play, or audio generation stops the Piper process. Qt no longer aborts at exit.
 - Closing the Voice Browser during a download stops its background threads first.

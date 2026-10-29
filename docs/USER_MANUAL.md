@@ -306,7 +306,7 @@ The audio toolbar controls playback of a document's generated audio:
 - **⏸ Pause** pauses playback. Play then changes to **▶ Resume**.
 - **⏹ Stop** stops playback.
 
-Selecting a document that has audio in the document list starts playing it. Generating audio does not start playback by itself.
+Selecting a document in the list only highlights it, and it stops any audio that was playing. Press **Play** to hear the selected document.
 
 Changing the voice or speed while audio plays stops the playback. Press Play again
 to hear the new audio.

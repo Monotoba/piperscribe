@@ -605,11 +605,9 @@ class MainWindow(QMainWindow):
         # Add max window size exclusion
         self.clamp_to_available_screen()
 
-        # Play audio if it exists
-        if doc.audio_path and Path(doc.audio_path).exists():
-            self.on_play_document_audio(doc)
-        else:
-            self.on_stop_audio()
+        # Selecting a document only highlights it. Stop audio from the previous selection,
+        # so Play always refers to the document shown as selected.
+        self.on_stop_audio()
 
     def _audio_state(self, doc) -> tuple[str, str]:
         """Icon and tooltip text for a document's audio: 🔊 current, ↻ out of date, ⚫ none."""
