@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.24 - 2026-10-29
+
+### Changed
+- Selecting a document in the list only highlights it. It stops audio from the previous selection, and Play refers to the selected document.
+- The document list marks audio that is out of date with ↻. Changing the voice or speed while audio plays stops the playback.
+
+### Fixed
+- Generating audio no longer starts playback by itself. Rebuilding the list re-selected the document, which started its audio and could overwrite the file while it played.
+- Generating audio over a file that is playing stops playback and releases the file first.
+
 ## 0.1.23 - 2026-10-29
 
 ### Added
