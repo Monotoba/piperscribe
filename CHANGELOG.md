@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.23 - 2026-10-29
+
+### Added
+- The install scripts (Linux, macOS, Windows) choose the WAV player for your system and save it in **Preferences → Voice**. The new step is number 4 of 5.
+
+### Changed
+- Install-script warnings that said Preview needs `aplay` are removed. `INSTALL.md` describes the current player behavior.
+
+### Fixed
+- Closing the window during Preview, Play, or audio generation stops the Piper process. Qt no longer aborts at exit.
+- Closing the Voice Browser during a download stops its background threads first.
+
 ## 0.1.22 - 2026-10-29
 
 ### Added

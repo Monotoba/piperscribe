@@ -62,7 +62,7 @@ class MenuOffsetStyle(QProxyStyle):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("PiperScribe v0.1.22")
+        self.setWindowTitle("PiperScribe v0.1.23")
 
         self.project = DocumentProject()
         self._app_settings = load_settings()
@@ -1834,7 +1834,7 @@ class MainWindow(QMainWindow):
         QMessageBox.about(
             self,
             "About PiperScribe",
-            "PiperScribe v0.1.22\n\n"
+            "PiperScribe v0.1.23\n\n"
             "A PySide6 GUI for text-to-speech with Piper.\n\n"
             "Piper TTS: https://github.com/rhasspy/piper\n"
             "Documentation: Press F1 for help"
@@ -1883,7 +1883,7 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Load failed", str(e))
             return
-        self.setWindowTitle(f"PiperScribe v0.1.22 — {self.project.title}")
+        self.setWindowTitle(f"PiperScribe v0.1.23 — {self.project.title}")
         self._init_piper_environment()
         self._refresh_view()
 
@@ -1912,7 +1912,7 @@ class MainWindow(QMainWindow):
             piper=PiperSettings.from_dict(self.project.piper.as_dict()),
             theme=self.project.theme,
         )
-        self.setWindowTitle(f"PiperScribe v0.1.22 — {self.project.title}")
+        self.setWindowTitle(f"PiperScribe v0.1.23 — {self.project.title}")
         self._refresh_view()
         self._push_recent_file(str(path))
 
@@ -1964,7 +1964,7 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Load failed", str(e))
             return
 
-        self.setWindowTitle(f"PiperScribe v0.1.22 — {self.project.title}")
+        self.setWindowTitle(f"PiperScribe v0.1.23 — {self.project.title}")
         self._init_piper_environment()
         self._refresh_view()
         self._push_recent_project(str(path))
