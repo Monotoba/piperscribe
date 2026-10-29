@@ -1,6 +1,7 @@
 [project]
 name = "piperscribe"
-version = "0.1.20"
+version = "0.1.21"
+license = {text = "PiperScribe Attribution License (PAL) 1.0"}
 description = "PySide6 GUI to import documents, mark exclusions, and generate audio with Piper."
 readme = "README.md"
 requires-python = ">=3.10"
