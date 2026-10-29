@@ -12,6 +12,10 @@
 - `run-piperscribe-safe.sh`, a launcher for Wayland with HiDPI scaling.
 - The window is kept inside the available screen area, at startup and after a document is opened.
 - A user manual (`docs/USER_MANUAL.md`), a license, and a contributing guide.
+- **Audio folder** setting in **Preferences → Voice**. Generated audio is saved there, so it doesn't depend on the project being saved first.
+- **File → Save Audio to Folder…** copies every document's audio into a folder you name.
+- PiperScribe warns you before quitting when audio exists only in the temporary folder. You can save it, quit anyway, or cancel.
+- **Help → Help Contents…** now includes the User Manual.
 
 ### Changed
 - **Play** on the toolbar generates audio first if the document has none, shows

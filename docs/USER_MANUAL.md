@@ -97,7 +97,7 @@ project when nothing is selected.
 
 | Menu | Items |
 |------|-------|
-| **File** | New Project, Import Document(s)…, Save Project…, Load Project…, Close Project, Recent Files, Recent Projects, Export WAV…, Generate All Audio, Export Playlist…, Quit |
+| **File** | New Project, Import Document(s)…, Save Project…, Load Project…, Close Project, Recent Files, Recent Projects, Export WAV…, Save Audio to Folder…, Generate All Audio, Export Playlist…, Quit |
 | **Edit** | Preferences…, Find… |
 | **Tools** | Exclude selection, Include selection, Preview selection, Stop Preview, Rules…, Reapply Rules, Import Voice Model…, Browse && Download Voices… |
 | **Help** | Help Contents…, About PiperScribe |
@@ -125,9 +125,13 @@ voice settings. Save it so you can come back to it.
 - **Recent Files** and **Recent Projects** reopen the last few items you used.
 
 **Save the project before you generate audio.** Audio is stored in a folder next
-to the project file. A project that has never been saved has no project folder,
-so its audio goes into a temporary folder that the system may clear. The first
-time you generate audio, save the project to keep it.
+to the project file, or in the **Audio folder** you set in Preferences. A project
+that has never been saved has no project folder, so its audio goes into a
+temporary folder that the system may clear.
+
+If you quit while audio is only in the temporary folder, PiperScribe warns you
+first. You can save the audio to a folder, quit anyway, or cancel and keep working.
+Use **File → Save Audio to Folder…** at any time to copy the audio somewhere permanent.
 
 ## 5. Importing documents
 
@@ -237,7 +241,7 @@ the project voice is used.
 
 ## 10. Generating audio
 
-There are three ways to generate audio. Each one writes WAV files to the project
+There are three ways to generate audio. Each one writes WAV files to the audio folder
 audio folder (see [Files and folders](#18-files-and-folders)).
 
 - **File → Generate All Audio** generates audio for every **enabled** document
@@ -281,6 +285,16 @@ export a playlist and play it with another player.
 
 ## 13. Exporting
 
+### Save Audio to Folder
+
+**File → Save Audio to Folder…** copies the generated audio for every document
+into a folder you name. Choose where the folder goes, then type its name. The
+name is pre-filled with the project title. Files with the same name in that
+folder are replaced. Afterwards, each document plays from its new location.
+
+Use this when you want the audio in a folder of your choice, for example to keep
+it with other files for a book or course.
+
 ### Export WAV
 
 **File → Export WAV…** saves one WAV file that contains all the enabled
@@ -314,6 +328,8 @@ Open **Edit → Preferences…**. It has three tabs.
 - Voice selection, testing, and deletion.
 - Speed, noise scale, and noise W.
 - The audio player.
+- **Audio folder.** Where generated audio is saved. Click **Browse…** to choose a
+  folder. Leave it empty to keep audio next to the project file.
 - **Browse && Download Voices…**
 
 **Rules**
@@ -359,9 +375,11 @@ are in [HIDPI_QT6_WAYLAND_FIX.md](HIDPI_QT6_WAYLAND_FIX.md).
 **A PDF imports with no text.** The PDF is probably a scan. PiperScribe reads
 only text-based PDFs.
 
-**My audio disappeared.** Audio for a project that was never saved goes into the
-temporary folder, which the system may clear. Save the project to a permanent
-location, then generate the audio again.
+**My audio disappeared.** Audio for a project that was never saved was kept in
+the temporary folder, which the system may clear. To avoid this, save the audio
+with **File → Save Audio to Folder…**, and set **Audio folder** in Preferences
+so new audio goes somewhere permanent. PiperScribe also warns you before you
+quit while audio is only in the temporary folder.
 
 The in-app Help (**Help → Help Contents…**) has more on these topics.
 
@@ -370,8 +388,9 @@ The in-app Help (**Help → Help Contents…**) has more on these topics.
 | What | Where |
 |------|-------|
 | Project file | Wherever you save it, usually ending in `.abproj.json` |
-| Generated audio | A folder next to the project file, named after the project with `_audio` added. For example, `MyBook.abproj.json` uses `MyBook_audio/`. |
-| Audio for an unsaved project | The system temporary folder, in `piperscribe_audio/`. Save the project to avoid losing it. |
+| Generated audio | The **Audio folder** from Preferences, if you set one. Otherwise a folder next to the project file, named after the project with `_audio` added (for example, `MyBook.abproj.json` uses `MyBook_audio/`). |
+| Audio for an unsaved project | The system temporary folder, in `piperscribe_audio/`, unless you set an Audio folder. PiperScribe warns you before you quit. |
+| Audio you saved with Save Audio to Folder | The folder you chose and named |
 | Settings | `~/.config/piperscribe/settings.json` (or `$XDG_CONFIG_HOME/piperscribe/settings.json`) |
 | Voices | `~/.local/share/piper/voices/` by default |
 

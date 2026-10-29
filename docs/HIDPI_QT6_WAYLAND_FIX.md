@@ -1,8 +1,8 @@
 # HiDPI and Wayland window sizing (PySide6 / Qt6)
 
-## Affected machine
+## Affected systems
 
-ASUS ProArt P16 (H7606WV), Ubuntu GNOME, HiDPI display, Wayland with fractional scaling.
+Linux desktops running Wayland with fractional scaling on a HiDPI display, such as GNOME on a high-resolution laptop.
 
 ## Symptoms
 
@@ -13,7 +13,7 @@ ASUS ProArt P16 (H7606WV), Ubuntu GNOME, HiDPI display, Wayland with fractional 
 
 - Qt6 uses logical (device-independent) pixels. Do not multiply sizes for HiDPI by hand.
 - Do not set `QT_SCALE_FACTOR` globally unless you are testing it. It stacks on top of Qt's own scaling.
-- Wayland fractional scaling can interact badly with PySide6 on this hardware.
+- Wayland fractional scaling can interact badly with PySide6.
 - Document content used to determine the top-level window's size, so a tall preview pushed the window past the screen.
 
 ## Workaround
