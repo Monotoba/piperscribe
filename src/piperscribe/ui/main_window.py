@@ -2139,21 +2139,26 @@ class MainWindow(QMainWindow):
 
     def on_play_audio(self) -> None:
         """Play audio for the currently active document."""
-        if self._player.playbackState() == QMediaPlayer.PausedState:
-            self._player.play()
-            return
-
         doc = self._get_current_document()
         if not doc:
             return
 
+        # Check freshness before resuming a paused player, so changed settings are never skipped.
         if not self._audio_is_current(doc):
             # No audio yet, or the voice, settings, or text changed since it was made.
-            # Regenerate first, with the progress dialog, then play.
+            # Release the file so it can be replaced, regenerate with the progress dialog,
+            # then play.
             self._player.stop()
+            self._player.setSource(QUrl())
             self.on_generate_document_audio()
             if not self._audio_is_current(doc):
                 return
+            self.on_play_document_audio(doc)
+            return
+
+        if self._player.playbackState() == QMediaPlayer.PausedState:
+            self._player.play()
+            return
 
         self.on_play_document_audio(doc)
 
