@@ -1177,6 +1177,8 @@ class MainWindow(QMainWindow):
         return clicked is discard_btn
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        # Stop Preview, Play, and Export processes so Qt does not abort at exit.
+        self.on_stop()
         if self._gen is not None:
             self._cancel_generation()
         if not self._confirm_temp_audio_before("quit"):
@@ -1598,6 +1600,8 @@ class MainWindow(QMainWindow):
             return
         if proc.state() != QProcess.NotRunning:
             proc.kill()
+            # Wait until the process has really stopped, so Qt does not abort when it is destroyed.
+            proc.waitForFinished(3000)
 
     def on_stop(self) -> None:
         self._kill_process(self._tts_proc)

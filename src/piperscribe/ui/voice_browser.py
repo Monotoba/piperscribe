@@ -87,6 +87,14 @@ class VoiceBrowserDialog(QDialog):
 
     voice_downloaded = Signal()  # Emitted when a voice download completes
 
+    def done(self, result: int) -> None:
+        # Qt aborts if a QThread is destroyed while it runs, so stop the workers first.
+        for thread in (getattr(self, "fetch_thread", None), self.current_download):
+            if thread is not None and thread.isRunning():
+                thread.requestInterruption()
+                thread.wait(5000)
+        super().done(result)
+
     def __init__(self, parent, voice_repos: list[str]):
         super().__init__(parent)
         self.setWindowTitle("Voice Browser — PiperScribe")

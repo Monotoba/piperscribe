@@ -40,6 +40,7 @@ class PiperRun(QObject):
         self._cancelled = True
         if self._proc.state() != QProcess.NotRunning:
             self._proc.kill()
+            self._proc.waitForFinished(3000)
         else:
             self._report(False, "Cancelled")
 
