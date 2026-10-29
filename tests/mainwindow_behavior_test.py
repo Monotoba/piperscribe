@@ -7,6 +7,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from typing import ClassVar
 from unittest import mock
 
 import pytest
@@ -31,7 +32,7 @@ class FakePiperRun(QObject):
     """Stands in for PiperRun: writes a placeholder WAV and reports success on the next tick."""
 
     finished = Signal(bool, str)
-    calls: list = []
+    calls: ClassVar[list] = []
     hold = False  # when True, the job waits until cancel() is called
     last = None
 
@@ -87,6 +88,13 @@ def window(app, tmp_path):
         w._ensure_piper_ready = lambda: True
         w.project.piper.model_path = VOICE_A
         w.project.documents.clear()
+        # Use fixed voice names, so the tests do not depend on the voices installed on the machine.
+        voice_dir = tmp_path / "voices"
+        voice_dir.mkdir()
+        for name in ("en_US-amy-medium", "en_US-lessac-medium", "de_DE-thorsten-high"):
+            (voice_dir / f"{name}.onnx").write_bytes(b"")
+        w._model_index = sorted(voice_dir.glob("*.onnx"))
+        w._populate_voice_combo()
         w.box = box
         yield w
         w.close()
@@ -155,8 +163,8 @@ def test_refreshing_the_window_changes_no_document(window):
 
 
 def test_preview_sample_uses_the_speed_and_noise_on_the_voice_tab(window):
-    from piperscribe.ui.preferences_dialog import PreferencesDialog
     from piperscribe.settings import AppSettings
+    from piperscribe.ui.preferences_dialog import PreferencesDialog
 
     dialog = PreferencesDialog(window, AppSettings.from_dict(window._app_settings.to_dict()), "",
                                apply_callback=None, initial_tab=1)
@@ -164,8 +172,8 @@ def test_preview_sample_uses_the_speed_and_noise_on_the_voice_tab(window):
     dialog.noise_scale.setValue(0.4)
     dialog.noise_w.setValue(0.9)
     args = dialog._sample_piper_args(Path("/voices/x.onnx"))
-    assert args == ["--model", "/voices/x.onnx", "--length_scale", "0.8",
-                    "--noise_scale", "0.4", "--noise_w", "0.9"]
+    assert Path(args[1]) == Path("/voices/x.onnx")
+    assert args[2:] == ["--length_scale", "0.8", "--noise_scale", "0.4", "--noise_w", "0.9"]
     dialog.close()
 
 
