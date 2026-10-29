@@ -20,6 +20,7 @@
 - The toolbar voice dropdown now changes the voice of every document that uses the project voice. Before, documents kept the voice they were imported with, so the change had no effect.
 - Speed, noise scale, and noise W changes on the Voice tab now reach documents that use the project values. Before, documents kept the values they were imported with.
 - **Test Selected Voice** now uses the speed and noise values shown on the Voice tab. Before, it always used Piper's defaults.
+- Generating audio shows a **Preparing Audio** popup that says the wait can be a minute or more and asks you to be patient. Before, the popup could not paint while Piper was running, so there was no feedback.
 - **Play** checks audio freshness before resuming a paused player, so a changed voice or speed is applied. Audio is regenerated only when it is out of date.
 - **Play** regenerates audio when the voice, speed, noise settings, or text changed since it was made. Before, changing the voice had no effect until audio was generated again.
 

@@ -277,6 +277,10 @@ first time you press Play.
 
 **Generate All Audio** always regenerates every enabled document.
 
+Whenever audio has to be generated, a **Preparing Audio** popup appears and asks
+you to be patient. Generation can take a minute or more for a long document, and
+it cannot be cancelled once it starts. Playback begins when it is ready.
+
 ## 11. Preview
 
 Preview lets you hear a passage before you generate the whole document.

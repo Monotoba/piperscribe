@@ -917,18 +917,27 @@ class MainWindow(QMainWindow):
         output_path = audio_dir / filename
 
         # Generate audio
+        progress = None
         try:
             from piperscribe.tts.piper import PiperTts
 
+            # Piper runs synchronously and blocks the event loop, so the dialog must be
+            # painted before that call. Cancel is removed because it could not be honored.
             progress = QProgressDialog(
-                f"Preparing audio for '{doc.title}'…",
-                "Cancel",
+                f"Preparing audio for '{doc.title}'…\n\n"
+                "This can take a minute or more for long documents.\n"
+                "Please be patient. Playback starts when the audio is ready.",
+                None,
                 0,
                 0,
                 self
             )
+            progress.setWindowTitle("Preparing Audio")
             progress.setWindowModality(Qt.WindowModal)
+            progress.setMinimumDuration(0)
+            progress.setCancelButton(None)
             progress.show()
+            QApplication.processEvents()
 
             piper_settings = doc.piper if doc.piper.model_path else self.project.piper
             tts = PiperTts(piper_settings)
@@ -951,6 +960,8 @@ class MainWindow(QMainWindow):
                 f"Audio saved to:\n{output_path}"
             )
         except Exception as e:
+            if progress is not None:
+                progress.close()
             QMessageBox.critical(
                 self,
                 "Generation Failed",
@@ -1225,7 +1236,8 @@ class MainWindow(QMainWindow):
                 break
 
             progress.setLabelText(
-                f"Document {i + 1} of {total}\n{doc.title}"
+                f"Document {i + 1} of {total}\n{doc.title}\n\n"
+                "This can take a while for long documents. Please be patient."
             )
             QApplication.processEvents()
 
