@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.22 - 2026-10-29
+
+### Added
+- **File → Open Document(s…)** (Ctrl+O). It does the same as Import, so a file can be opened without creating or saving a project.
+- **Preparing Audio** popup while audio is generated. It asks you to be patient, and it has a working **Cancel**.
+
+### Changed
+- Audio generation runs in the background. The window keeps responding, and Cancel stops the current document. Generate All stops after the document in progress.
+- Speed, noise scale, and noise W changes on the Voice tab reach documents that use the project values. Documents set differently in Document Settings keep their own values.
+- **Test Selected Voice** uses the speed and noise values shown on the Voice tab.
+
+### Fixed
+- The toolbar voice dropdown now changes the voice of documents that use the project voice. Before, documents kept the voice they were imported with, so the change had no effect.
+- **Play** checks whether the audio is current before resuming a paused player. A changed voice, speed, or text is applied.
+- **Play** regenerates audio whenever the voice, speed, noise settings, or text changed since it was made.
+
 ## 0.1.21 - 2026-10-28
 
 ### Added
