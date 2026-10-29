@@ -39,5 +39,5 @@ jobs:
           path: dist/
       - name: Create the release if it does not exist, then attach the build
         run: |
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --verify-tag --title "PiperScribe $TAG" --generate-notes
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --verify-tag --title "PiperScribe ${TAG#v}" --generate-notes
           gh release upload "$TAG" dist/* --clobber
