@@ -256,8 +256,15 @@ audio folder (see [Files and folders](#18-files-and-folders)).
 Generation uses only the text that is not excluded. A document with all of its
 text excluded is skipped, and PiperScribe tells you.
 
-**Changing the text does not regenerate audio.** If you edit a document after
-generating its audio, the old audio still plays. Generate again to update it.
+**Play regenerates stale audio.** PiperScribe records the voice, speed, noise
+settings, and text each audio file was made from. When you press **Play**, it
+checks that record. If you changed the voice (on the toolbar or in Document
+Settings), the speed or noise settings, or the text, it shows the progress dialog,
+generates the audio again, and then plays it. If nothing changed, it plays the
+existing file. Documents made before this check was added are regenerated the
+first time you press Play.
+
+**Generate All Audio** always regenerates every enabled document.
 
 ## 11. Preview
 

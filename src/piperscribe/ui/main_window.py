@@ -886,7 +886,7 @@ class MainWindow(QMainWindow):
             from piperscribe.tts.piper import PiperTts
 
             progress = QProgressDialog(
-                f"Generating audio for '{doc.title}'...",
+                f"Preparing audio for '{doc.title}'…",
                 "Cancel",
                 0,
                 0,
@@ -904,6 +904,7 @@ class MainWindow(QMainWindow):
 
             # Get audio duration (simple estimate: ~150 chars per second of speech)
             doc.audio_duration = len(text) / 150.0
+            doc.audio_signature = self._audio_signature(text, piper_settings)
 
             progress.close()
 
@@ -945,6 +946,32 @@ class MainWindow(QMainWindow):
         if cpp:
             return self._audio_dir_for_project(Path(cpp))
         return self._temp_audio_dir()
+
+    def _doc_piper(self, doc) -> PiperSettings:
+        return doc.piper if doc.piper.model_path else self.project.piper
+
+    def _audio_signature(self, text: str, piper: PiperSettings) -> str:
+        """Fingerprint of what the audio is made from: voice, settings, and text."""
+        import hashlib
+        payload = json.dumps(
+            {
+                "model": piper.model_path,
+                "length_scale": piper.length_scale,
+                "noise_scale": piper.noise_scale,
+                "noise_w": piper.noise_w,
+                "text": text,
+            },
+            sort_keys=True,
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _audio_is_current(self, doc) -> bool:
+        """True when the document has audio made with its current voice, settings, and text."""
+        if not doc.audio_path or not Path(doc.audio_path).exists():
+            return False
+        from piperscribe.model.spans import subtract_spans
+        text = subtract_spans(doc.text, doc.exclusions).strip()
+        return doc.audio_signature == self._audio_signature(text, self._doc_piper(doc))
 
     def _temp_audio_dir(self) -> Path:
         return Path(tempfile.gettempdir()) / "piperscribe_audio"
@@ -1185,6 +1212,7 @@ class MainWindow(QMainWindow):
                 # Update document metadata
                 doc.audio_path = str(output_path)
                 doc.audio_duration = len(text) / 150.0  # Rough estimate
+                doc.audio_signature = self._audio_signature(text, piper_settings)
 
                 success_count += 1
 
@@ -2084,10 +2112,12 @@ class MainWindow(QMainWindow):
         if not doc:
             return
 
-        if not doc.audio_path or not Path(doc.audio_path).exists():
-            # No audio yet: generate it first (with its progress and result dialogs), then play.
+        if not self._audio_is_current(doc):
+            # No audio yet, or the voice, settings, or text changed since it was made.
+            # Regenerate first, with the progress dialog, then play.
+            self._player.stop()
             self.on_generate_document_audio()
-            if not doc.audio_path or not Path(doc.audio_path).exists():
+            if not self._audio_is_current(doc):
                 return
 
         self.on_play_document_audio(doc)

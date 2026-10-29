@@ -53,6 +53,8 @@ class Document:
     piper: PiperSettings = field(default_factory=PiperSettings)
     audio_path: Optional[str] = None
     audio_duration: float = 0.0
+    # Fingerprint of the voice, settings, and text the audio was made from
+    audio_signature: str = ""
     enabled: bool = True
     order: int = 0
 
@@ -72,6 +74,7 @@ class Document:
             "piper": self.piper.as_dict(),
             "audio_path": self.audio_path,
             "audio_duration": self.audio_duration,
+            "audio_signature": self.audio_signature,
             "enabled": self.enabled,
             "order": self.order,
         }
@@ -88,6 +91,7 @@ class Document:
             piper=PiperSettings.from_dict(d.get("piper", {})),
             audio_path=d.get("audio_path"),
             audio_duration=float(d.get("audio_duration", 0.0)),
+            audio_signature=str(d.get("audio_signature", "")),
             enabled=bool(d.get("enabled", True)),
             order=int(d.get("order", 0)),
         )
