@@ -1,84 +1,67 @@
-# PiperScribe (v0.1)
+# PiperScribe
 
-A small **PySide6** desktop app that can:
+PiperScribe is a desktop app for turning documents into speech. It uses
+[Piper TTS](https://github.com/rhasspy/piper) to generate audio, so it runs
+offline, and it is built with PySide6 (Qt 6).
 
-- Import **TXT / DOCX / Markdown / HTML / PDF (text-based)**
-- Display extracted text
-- Let you **mark selections as “excluded”** (won’t be spoken)
-- Export a single **WAV** using **Piper TTS** (via the `piper` CLI)
-- Select a **voice/model** from discovered Piper voices and adjust **speed**
-- Choose **Theme** (System/Light/Dark)
+Use it to make audiobooks, course audio, or spoken versions of documents. Mark
+the parts you don't want read (headers, footers, URLs), manage several documents
+in one project, preview a passage before generating the whole thing, and export
+WAV audio or a playlist.
 
-> Notes:
-> - PDF import requires `PyMuPDF` and works best on text-based PDFs. Scanned PDFs are not supported yet.
-> - DOCX import requires `python-docx`.
-> - Markdown/HTML import uses `markdown-it-py` + `beautifulsoup4` if installed; falls back to a simpler extractor otherwise.
-> - MP3/M4A export is intentionally not included in v0.1. (Easy to add via ffmpeg later.)
+## Features
 
-## Quick start (uv)
+- Import **TXT, DOCX, Markdown, HTML, and text-based PDF** files.
+- Mark text as **excluded** (not spoken) or **included**, by hand or with regex rules.
+- Manage several documents in one project, reorder them, and enable or disable each one for the playlist.
+- Choose a **Piper voice** per document, browse and download voices, and adjust speed and voice variation.
+- **Preview** a selected passage before generating the full audio.
+- **Generate** audio for one document or all enabled documents.
+- Play generated audio in the app, with a choice of system WAV player.
+- Export a **WAV** file or an **M3U + JSON playlist**.
+- Light, dark, or system theme.
+
+## Installation
+
+See [INSTALL.md](INSTALL.md) for full steps. You need Python 3.10 or later and
+the `piper` command on your PATH.
+
+Quick start on Linux or macOS:
 
 ```bash
+git clone https://github.com/Monotoba/piperscribe.git
 cd piperscribe
-uv venv
-source .venv/bin/activate
-uv pip install -e ".[importers,dev]"
-pytest
-PiperScribe
+./setup-prj.sh
+./run.sh
 ```
 
-## Piper setup
+Windows users can run `install-windows.bat` or `install-windows.ps1`.
 
-This app calls `piper` as a subprocess. Verify you can run:
+On Wayland with HiDPI scaling, the window can open too large. Use
+`./run-piperscribe-safe.sh` instead. See
+[docs/HIDPI_QT6_WAYLAND_FIX.md](docs/HIDPI_QT6_WAYLAND_FIX.md).
 
-```bash
-piper --help
-```
+## Documentation
 
-In the app, set the **Piper model path** (e.g. `~/.local/share/piper/voices/en_US-lessac-medium.onnx`).
+- **[User Manual](docs/USER_MANUAL.md)**: the full guide to using PiperScribe.
+- [Getting started](docs/help/getting-started.md) and [troubleshooting](docs/help/troubleshooting.md): also shown in the app under **Help → Help Contents…**.
+- [INSTALL.md](INSTALL.md): installation and setup.
+- [CHANGELOG.md](CHANGELOG.md): what changed in each release.
 
-## Project files
+## Contributing
 
-The app can save a `.abproj.json` file which contains:
-- source path
-- extracted text
-- exclusion spans
-- piper settings
+Bug reports, fixes, and improvements are welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Roadmap ideas (v0.2+)
-- paragraph/chapter splitting and per-section export
-- PDF cleanup (header/footer de-dup, de-hyphenation, multi-column ordering)
-- basic OCR fallback (optional)
-- audio preview via QtMultimedia (cross-platform)
+## License
 
+PiperScribe is released under the **PiperScribe Attribution License (PAL) 1.0**.
+See [LICENSE](LICENSE). In short:
 
-## Settings persistence
-PiperScribe saves your theme and voice/speed/noise settings automatically to `~/.config/piperscribe/settings.json` (or `$XDG_CONFIG_HOME/piperscribe/settings.json`).
+- It is free to use, copy, modify, and distribute.
+- You must keep the copyright and credit the author ("Monotoba") and the project.
+- You may not charge for the software, its packaging, its media or delivery, or access to it.
+- Output you generate with it (audio, text) is yours to use however you like.
 
-
-## Settings UI
-Use **Settings…** to edit theme and Piper voice parameters in one place.
-Use **Reset Settings** to delete saved settings and return to defaults.
-
-
-## Rules (regex include/exclude)
-Use **Rules…** to add regex-based include/exclude rules (with canned URL rules). After editing, apply them to automatically exclude repeated headers/footers like website URLs, page numbers, contents, appendices, etc.
-
-
-### Rule application behavior
-Manual exclusions are kept separately. Rules are applied on top of manual exclusions to compute the final excluded spans used for preview/export. Use **Reapply Rules** to recompute after tweaking settings.
-
-
-## Preferences
-All app-wide settings (theme, voice/model, speed/noise, rule settings) are managed under **Preferences…**.
-
-
-## Menus
-Preferences and rule tools are available from the menu bar:
-- **Edit → Preferences…**
-- **Tools → Rules…** (shortcut to Preferences)
-- **Tools → Reapply Rules**
-- **Edit → Find…**
-
-
-## Testing
-Run `./setup-prj.sh` then `pytest` (tests live under `tests/`).
+This is a custom license, not an OSI-approved open-source license. Third-party
+components keep their own licenses, including Piper TTS, PySide6, and PyMuPDF.

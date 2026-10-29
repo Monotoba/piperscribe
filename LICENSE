@@ -1,0 +1,86 @@
+PiperScribe Attribution License (PAL) Version 1.0
+
+Copyright (c) 2025-2026 Monotoba. All rights reserved, except as granted below.
+
+This is a custom license. It is not approved by the Open Source Initiative, and
+it restricts charging for the software, which the Open Source Definition does
+not allow. Read it before you rely on it.
+
+1. Grant
+
+Permission is granted, free of charge, to any person who obtains a copy of
+PiperScribe and its documentation (the "Software"), to use, copy, modify,
+merge, publish, distribute, and sublicense copies of the Software, subject to
+the conditions in this License.
+
+2. Attribution
+
+Every copy of the Software you distribute, modified or not, must include this
+License and the copyright notice above. Any documentation, "about" screen, or
+download page for a distributed copy must credit the original author
+("Monotoba") and the PiperScribe project, and link to the project repository.
+
+A modified version must state that it has been modified. It must not be
+presented as the original Software, and it must not imply endorsement by the
+author.
+
+3. No Charge
+
+You may not charge money, or require any other payment or consideration, for:
+
+  (a) the Software itself;
+  (b) packaging, bundling, or installing the Software, including as part of
+      another product or device;
+  (c) the physical or digital media on which the Software is delivered, or the
+      download, transfer, or delivery of the Software; or
+  (d) access to the Software, including hosting it, providing it as a service,
+      or requiring a subscription, license key, or purchase of other goods or
+      services before the Software can be used or obtained.
+
+The Software must remain available free of charge to anyone who wants it. You
+may not offer it through a paid tier or in a way that makes payment a condition
+of obtaining or using it.
+
+Charging for work that is separate from the Software, such as custom
+development, training, or consulting, is not restricted by this clause, as long
+as the charge is not for the Software, its packaging, media, delivery, or access.
+
+Voluntary donations to the author may be accepted only if the Software is fully
+functional and free whether or not a donation is made.
+
+4. Output and Use
+
+This License does not restrict what you may do with audio, text, or other output
+produced by the Software, including commercial use of that output.
+
+5. Third-Party Components
+
+The Software depends on third-party components, including Piper TTS, PySide6, and
+optional importers such as PyMuPDF. Each keeps its own license, and you must
+comply with those licenses when you distribute the Software. Voice models have
+their own license terms. Nothing in this License changes those terms.
+
+6. Trademark
+
+The name "PiperScribe" identifies the original Software. Modified versions may
+not use the name in a way that suggests they are the official project, unless
+the author gives written permission.
+
+7. Termination
+
+If you breach this License, your rights under it end automatically. They are
+reinstated if you cure the breach within 30 days of learning of it.
+
+8. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+9. Contributions
+
+Unless you state otherwise, any contribution you submit to the project is
+licensed under this same License.
