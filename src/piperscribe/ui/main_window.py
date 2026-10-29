@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
 
         self._tts_proc: QProcess | None = None
         self._play_proc: QProcess | None = None
+        self._preview_dir: tempfile.TemporaryDirectory | None = None
         self._progress: QProgressDialog | None = None
         self.current_project_path: str | None = None
 
@@ -1904,19 +1905,16 @@ class MainWindow(QMainWindow):
         if not text:
             return
 
-        td = tempfile.TemporaryDirectory()
-        wav = Path(td.name) / "preview.wav"
+        # Stop any earlier preview before replacing its temp dir, so nothing is still reading it.
+        self.on_stop()
+        # Keep the dir alive until the next preview replaces it. Deleting it on a timer
+        # removed it while Piper was still writing the WAV.
+        self._preview_dir = tempfile.TemporaryDirectory()
+        wav = Path(self._preview_dir.name) / "preview.wav"
 
         def after_tts() -> None:
             self._start_playback(wav)
 
-        def cleanup_later() -> None:
-            if self._play_proc is None or self._play_proc.state() == QProcess.NotRunning:
-                td.cleanup()
-            else:
-                QTimer.singleShot(500, cleanup_later)
-
-        QTimer.singleShot(500, cleanup_later)
         self._start_tts_process(text + "\n", wav, after_tts)
 
     def on_export_wav(self) -> None:
