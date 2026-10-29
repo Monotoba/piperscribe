@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0 - 2026-10-29
+
+### Added
+- Automated checks on GitHub for every push and pull request: lint, a type check, the test suite on Linux, macOS, and Windows with Python 3.10 through 3.14, and each platform's install script run from scratch.
+- A release workflow. Pushing a version tag builds the wheel and source package and attaches them to the GitHub release.
+- Behavior tests for voices and settings, audio freshness, generation and cancel, selection, opening files, saving audio, and the exit warning. They run without Piper or an audio device.
+- A versioned pre-commit hook in `.githooks`, and a README section asking for macOS and Windows testers.
+
+### Changed
+- Lint rules are widened to E, W, B, RUF, and I (with two deliberate exceptions, listed in `pyproject.toml`).
+- Type checking covers the source. Four Qt stub categories are excluded, as explained in `pyproject.toml`.
+
+### Fixed
+- The generation queue checks for missing state instead of indexing an optional value.
+- Import order and unused `noqa` comments are fixed.
+
 ## 0.1.26 - 2026-10-29
 
 ### Added

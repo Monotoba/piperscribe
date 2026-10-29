@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "piperscribe"
-version = "0.1.26"
+version = "0.2.0"
 license = "LicenseRef-PiperScribe-PAL-1.0"
 license-files = ["LICENSE"]
 description = "PySide6 GUI to import documents, mark exclusions, and generate audio with Piper."
