@@ -78,6 +78,7 @@ class MainWindow(QMainWindow):
         self._play_proc: QProcess | None = None
         self._preview_dir: tempfile.TemporaryDirectory | None = None
         self._gen: dict | None = None  # state of the audio generation queue, if any
+        self._editor_doc_id: str | None = None  # document currently shown in the editor
         self._progress: QProgressDialog | None = None
         self.current_project_path: str | None = None
 
@@ -595,19 +596,23 @@ class MainWindow(QMainWindow):
         if not doc:
             return
 
-        # Load document text into editor
+        self._show_in_editor(doc)
+
+        # Selecting a document only highlights it. Stop audio from the previous selection,
+        # so Play always refers to the document shown as selected.
+        self.on_stop_audio()
+
+    def _show_in_editor(self, doc) -> None:
+        """Load a document's text into the editor and refresh what depends on it."""
+        self._editor_doc_id = doc.id
         self.editor.setPlainText(doc.text)
 
         # Update exclusion formatting
         self._apply_exclusion_formatting()
         self._update_stats()
-        
+
         # Add max window size exclusion
         self.clamp_to_available_screen()
-
-        # Selecting a document only highlights it. Stop audio from the previous selection,
-        # so Play always refers to the document shown as selected.
-        self.on_stop_audio()
 
     def _audio_state(self, doc) -> tuple[str, str]:
         """Icon and tooltip text for a document's audio: 🔊 current, ↻ out of date, ⚫ none."""
@@ -684,6 +689,13 @@ class MainWindow(QMainWindow):
         if not self.doc_list.currentItem() and self.doc_list.count() > 0:
             self.doc_list.setCurrentRow(0)
         self.doc_list.blockSignals(False)
+
+        # Selection changes made above were silent, so show the selected document here,
+        # unless the editor already shows it (reloading would move the cursor).
+        current = self.doc_list.currentItem()
+        doc = self.project.get_document(current.data(Qt.UserRole)) if current else None
+        if doc is not None and doc.id != getattr(self, "_editor_doc_id", None):
+            self._show_in_editor(doc)
 
         # Update button states
         self._update_document_buttons()
