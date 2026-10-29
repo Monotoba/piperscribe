@@ -53,6 +53,26 @@ On Wayland with HiDPI scaling, the window can open too large. Use
 - [INSTALL.md](INSTALL.md): installation and setup.
 - [CHANGELOG.md](CHANGELOG.md): what changed in each release.
 
+## Testers wanted: macOS and Windows
+
+Automated tests run on macOS and Windows, but nobody has tried PiperScribe on a real
+Mac or Windows PC yet. Audio playback, dialogs, and the window layout still need
+checking there. If you have one of these systems, please help.
+
+Please try:
+
+1. Run the install script (`install-macos.sh` or `install-windows.ps1`) and check that it finishes.
+2. Import a text file, pick a voice, and press **Play**. Check that you hear the audio.
+3. Select some text and press **Preview selection**.
+4. Open **Preferences**, **Help**, **Tools → Browse && Download Voices…**, and **Document Settings**.
+5. Use **File → Save Audio to Folder…**, then open the folder and check the files.
+6. Resize and maximize the window, and check that nothing is cut off.
+
+Report what you find as a [GitHub issue](https://github.com/Monotoba/piperscribe/issues/new).
+Include your operating system version, your Python version, the audio player shown in
+**Preferences → Voice**, and what you did before the problem. Screenshots and
+any text from the terminal help.
+
 ## Contributing
 
 Bug reports, fixes, and improvements are welcome. See
