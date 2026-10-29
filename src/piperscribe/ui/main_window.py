@@ -622,6 +622,7 @@ class MainWindow(QMainWindow):
         if not item:
             return
 
+        doc = self.project.get_document(item.data(Qt.UserRole))
         menu = QMenu(self)
 
         # Document Settings action
