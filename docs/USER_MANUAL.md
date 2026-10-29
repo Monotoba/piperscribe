@@ -204,7 +204,12 @@ toolbar or Preferences change updates the project voice and every document still
 using the previous project voice. A voice you picked for a single document in
 **Document Settings** stays as it is.
 
-Click **Test Selected Voice** on the Voice tab to hear a sample.
+Speed, noise scale, and noise W follow the same rule: a change on the Voice tab
+updates every document still using the project's values. A document you set
+differently in Document Settings keeps its own values.
+
+Click **Test Selected Voice** on the Voice tab to hear a sample. The sample uses
+the speed and noise values shown on that tab, whether or not you have pressed OK.
 
 ### Voice settings
 

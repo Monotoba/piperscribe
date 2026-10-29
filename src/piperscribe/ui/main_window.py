@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 from pathlib import Path
@@ -510,9 +511,14 @@ class MainWindow(QMainWindow):
         self.theme_combo.blockSignals(True)
         self.theme_combo.setCurrentIndex(0 if t == "system" else (1 if t == "light" else 2))
         self.theme_combo.blockSignals(False)
+        # Blocked so that showing the project's values does not change the project or documents.
+        for spin in (self.speed, self.noise_scale, self.noise_w):
+            spin.blockSignals(True)
         self.speed.setValue(self._length_scale_to_speed(self.project.piper.length_scale))
         self.noise_scale.setValue(self.project.piper.noise_scale)
         self.noise_w.setValue(self.project.piper.noise_w)
+        for spin in (self.speed, self.noise_scale, self.noise_w):
+            spin.blockSignals(False)
 
         if self._model_index and self.project.piper.model_path:
             self._select_voice_by_path(self.project.piper.model_path)
@@ -544,8 +550,24 @@ class MainWindow(QMainWindow):
         return 1.0 / ls
 
     def on_settings_changed(self, _val=None) -> None:
+        before = (self.project.piper.length_scale, self.project.piper.noise_scale, self.project.piper.noise_w)
         self._sync_piper_settings_from_ui()
+        self._follow_project_settings(before)
         self._persist_app_settings()
+
+    def _follow_project_settings(self, before: tuple[float, float, float]) -> None:
+        """Move speed and noise on documents that still use the previous project values.
+
+        Documents copy these values when imported. A document whose value was changed
+        in Document Settings is different from the project and keeps it.
+        """
+        after = (self.project.piper.length_scale, self.project.piper.noise_scale, self.project.piper.noise_w)
+        for doc in self.project.documents:
+            values = [doc.piper.length_scale, doc.piper.noise_scale, doc.piper.noise_w]
+            for i in range(3):
+                if math.isclose(values[i], before[i], abs_tol=1e-9):
+                    values[i] = after[i]
+            doc.piper.length_scale, doc.piper.noise_scale, doc.piper.noise_w = values
 
     def _on_document_selected(self, current: QListWidgetItem | None, previous: QListWidgetItem | None) -> None:
         """Handle document selection change."""

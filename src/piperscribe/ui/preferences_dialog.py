@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from piperscribe.audio.player import AUTO, build_command, player_names, resolve_player
+from piperscribe.model.document import PiperSettings
 from piperscribe.settings import AppSettings, reset_settings
 from piperscribe.tts.piper_utils import check_piper_installed, iter_model_paths
 from piperscribe.ui.rules_editor import RulesEditorWidget
@@ -313,6 +314,16 @@ class PreferencesDialog(QDialog):
             return
         QMessageBox.information(self, "Piper OK", f"Found Piper at:\n{st.path}")
 
+    def _sample_piper_args(self, model_path: Path) -> list[str]:
+        """Piper arguments for the sample, using the speed and noise shown on this tab."""
+        speed = max(0.1, float(self.speed.value()))
+        return PiperSettings(
+            model_path=str(model_path),
+            length_scale=1.0 / speed,
+            noise_scale=float(self.noise_scale.value()),
+            noise_w=float(self.noise_w.value()),
+        ).to_args()
+
     def _browse_audio_output_dir(self) -> None:
         start = self.audio_output_dir.text().strip() or str(Path.home())
         chosen = QFileDialog.getExistingDirectory(self, "Choose a folder for generated audio", start)
@@ -351,7 +362,7 @@ class PreferencesDialog(QDialog):
             # Run Piper to generate sample audio
             import subprocess
             result = subprocess.run(
-                ["piper", "--model", str(model_path_expanded), "--output_file", wav_path],
+                ["piper", *self._sample_piper_args(model_path_expanded), "--output_file", wav_path],
                 input=sample_text.encode('utf-8'),
                 capture_output=True,
                 timeout=10
