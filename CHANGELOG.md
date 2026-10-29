@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.25 - 2026-10-29
 
 ### Fixed
 - A document opened with **File → Open Document(s…)** is shown in the editor. Before, the list selected it but the text did not load.
