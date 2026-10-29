@@ -41,6 +41,7 @@ from piperscribe.audio.player import build_command, resolve_player
 from piperscribe.hidpi import clamp_after_show, clamp_window_to_screen
 from piperscribe.importers.registry import import_any
 from piperscribe.model.document import Document, DocumentProject, PiperSettings
+from piperscribe.tts.piper_job import PiperRun
 from piperscribe.model.spans import Span, normalize_spans
 from piperscribe.rules import apply_rules
 from piperscribe.tts.piper_utils import check_piper_installed, iter_model_paths, choose_default_model
@@ -76,6 +77,7 @@ class MainWindow(QMainWindow):
         self._tts_proc: QProcess | None = None
         self._play_proc: QProcess | None = None
         self._preview_dir: tempfile.TemporaryDirectory | None = None
+        self._gen: dict | None = None  # state of the audio generation queue, if any
         self._progress: QProgressDialog | None = None
         self.current_project_path: str | None = None
 
@@ -885,8 +887,116 @@ class MainWindow(QMainWindow):
         doc.enabled = not doc.enabled
         self._rebuild_document_list()
 
-    def on_generate_document_audio(self) -> None:
-        """Generate audio for the currently selected document."""
+    def _audio_filename(self, doc) -> str:
+        safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in doc.title)
+        safe_title = safe_title.strip().replace(' ', '-')[:50]  # Limit length
+        return f"{safe_title}-{doc.id[:8]}.wav"
+
+    def _snapshot_piper(self, doc) -> PiperSettings:
+        """Copy the voice settings a document will be generated with, so later edits don't change the job."""
+        piper = self._doc_piper(doc)
+        return PiperSettings.from_dict(piper.as_dict())
+
+    def _generate_queue(self, items: list, title: str, label, on_all_done) -> bool:
+        """Generate audio for each (doc, text, piper) in turn, in the background.
+
+        The window keeps responding, and Cancel stops the current job and any others.
+        ``label(doc, number, total)`` gives the progress text. ``on_all_done(state)``
+        runs when the queue ends; ``state`` has ``ok`` (documents made), ``errors``, and
+        ``cancelled``. Returns False if another generation is already running.
+        """
+        if self._gen is not None:
+            QMessageBox.information(
+                self, "Busy", "Audio is already being prepared. Please wait for it to finish."
+            )
+            return False
+        audio_dir = self._get_project_audio_dir()
+        audio_dir.mkdir(parents=True, exist_ok=True)
+
+        progress = QProgressDialog("", "Cancel", 0, len(items), self)
+        progress.setWindowTitle(title)
+        progress.setWindowModality(Qt.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setAutoClose(False)
+        progress.setAutoReset(False)
+        progress.canceled.connect(self._cancel_generation)
+        progress.show()
+
+        self._gen = {
+            "items": items,
+            "index": 0,
+            "progress": progress,
+            "label": label,
+            "audio_dir": audio_dir,
+            "run": None,
+            "ok": [],
+            "errors": [],
+            "cancelled": False,
+            "on_all_done": on_all_done,
+        }
+        self._gen_next()
+        return True
+
+    def _gen_next(self) -> None:
+        g = self._gen
+        if g["index"] >= len(g["items"]):
+            self._gen_finish()
+            return
+        doc, text, piper = g["items"][g["index"]]
+        total = len(g["items"])
+        g["progress"].setValue(g["index"])
+        g["progress"].setLabelText(g["label"](doc, g["index"] + 1, total))
+        output = g["audio_dir"] / self._audio_filename(doc)
+
+        run = PiperRun(self, piper, text, output)
+        run.finished.connect(
+            lambda ok, message, d=doc, t=text, pz=piper, o=output: self._gen_job_done(ok, message, d, t, pz, o)
+        )
+        g["run"] = run
+        run.start()
+
+    def _gen_job_done(self, ok: bool, message: str, doc, text: str, piper, output: Path) -> None:
+        g = self._gen
+        if g is None:
+            return
+        if ok:
+            doc.audio_path = str(output)
+            # Simple estimate: about 150 characters per second of speech
+            doc.audio_duration = len(text) / 150.0
+            doc.audio_signature = self._audio_signature(text, piper)
+            g["ok"].append(doc)
+        elif message == "Cancelled":
+            g["cancelled"] = True
+        else:
+            g["errors"].append(f"{doc.title}: {message}")
+        g["index"] += 1
+        g["run"] = None
+        self._rebuild_document_list()
+        if g["cancelled"]:
+            self._gen_finish()
+        else:
+            self._gen_next()
+
+    def _cancel_generation(self) -> None:
+        g = self._gen
+        if g is None:
+            return
+        g["cancelled"] = True
+        if g["run"] is not None:
+            # The job reports "Cancelled", which ends the queue in _gen_job_done.
+            g["run"].cancel()
+        else:
+            self._gen_finish()
+
+    def _gen_finish(self) -> None:
+        g = self._gen
+        self._gen = None
+        g["progress"].close()
+        self._rebuild_document_list()
+        g["on_all_done"](g)
+
+    def on_generate_document_audio(self, then=None) -> None:
+        """Generate audio for the currently selected document, then call ``then`` if given."""
         doc = self._get_current_document()
         if not doc:
             return
@@ -906,67 +1016,26 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # Create audio directory
-        audio_dir = self._get_project_audio_dir()
-        audio_dir.mkdir(parents=True, exist_ok=True)
-
-        # Generate filename: sanitized-title-{doc_id[:8]}.wav
-        safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in doc.title)
-        safe_title = safe_title.strip().replace(' ', '-')[:50]  # Limit length
-        filename = f"{safe_title}-{doc.id[:8]}.wav"
-        output_path = audio_dir / filename
-
-        # Generate audio
-        progress = None
-        try:
-            from piperscribe.tts.piper import PiperTts
-
-            # Piper runs synchronously and blocks the event loop, so the dialog must be
-            # painted before that call. Cancel is removed because it could not be honored.
-            progress = QProgressDialog(
-                f"Preparing audio for '{doc.title}'…\n\n"
+        def label(d, number, total) -> str:
+            return (
+                f"Preparing audio for '{d.title}'…\n\n"
                 "This can take a minute or more for long documents.\n"
-                "Please be patient. Playback starts when the audio is ready.",
-                None,
-                0,
-                0,
-                self
+                "Please be patient. Playback starts when the audio is ready."
             )
-            progress.setWindowTitle("Preparing Audio")
-            progress.setWindowModality(Qt.WindowModal)
-            progress.setMinimumDuration(0)
-            progress.setCancelButton(None)
-            progress.show()
-            QApplication.processEvents()
 
-            piper_settings = doc.piper if doc.piper.model_path else self.project.piper
-            tts = PiperTts(piper_settings)
-            tts.synthesize_to_wav(text, output_path)
+        def on_all_done(g) -> None:
+            if g["ok"]:
+                QMessageBox.information(self, "Audio Generated", f"Audio saved to:\n{doc.audio_path}")
+                if then is not None:
+                    then()
+            elif g["errors"]:
+                QMessageBox.critical(
+                    self,
+                    "Generation Failed",
+                    f"Failed to generate audio:\n\n{g['errors'][0]}"
+                )
 
-            # Update document metadata
-            doc.audio_path = str(output_path)
-
-            # Get audio duration (simple estimate: ~150 chars per second of speech)
-            doc.audio_duration = len(text) / 150.0
-            doc.audio_signature = self._audio_signature(text, piper_settings)
-
-            progress.close()
-
-            self._rebuild_document_list()
-
-            QMessageBox.information(
-                self,
-                "Audio Generated",
-                f"Audio saved to:\n{output_path}"
-            )
-        except Exception as e:
-            if progress is not None:
-                progress.close()
-            QMessageBox.critical(
-                self,
-                "Generation Failed",
-                f"Failed to generate audio:\n\n{e}"
-            )
+        self._generate_queue([(doc, text, self._snapshot_piper(doc))], "Preparing Audio", label, on_all_done)
 
     def _audio_dir_for_project(self, project_path: Path) -> Path:
         """Canonical audio directory for a project file: ``{name-without-suffixes}_audio``."""
@@ -1108,6 +1177,8 @@ class MainWindow(QMainWindow):
         return clicked is discard_btn
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if self._gen is not None:
+            self._cancel_generation()
         if not self._confirm_temp_audio_before("quit"):
             event.ignore()
             return
@@ -1177,16 +1248,15 @@ class MainWindow(QMainWindow):
         if not self._ensure_piper_ready():
             return
 
-        # Count documents that need audio generation
-        docs_to_generate = []
+        # Documents that have text left after exclusions
+        from piperscribe.model.spans import subtract_spans
+        items = []
         for doc in enabled_docs:
-            # Get text after exclusions
-            from piperscribe.model.spans import subtract_spans
             text = subtract_spans(doc.text, doc.exclusions).strip()
             if text:
-                docs_to_generate.append(doc)
+                items.append((doc, text, self._snapshot_piper(doc)))
 
-        if not docs_to_generate:
+        if not items:
             QMessageBox.information(
                 self,
                 "No Text",
@@ -1198,7 +1268,7 @@ class MainWindow(QMainWindow):
         reply = QMessageBox.question(
             self,
             "Generate All Audio",
-            f"Generate audio for {len(docs_to_generate)} document(s)?",
+            f"Generate audio for {len(items)} document(s)?",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes
         )
@@ -1206,91 +1276,39 @@ class MainWindow(QMainWindow):
         if reply != QMessageBox.Yes:
             return
 
-        # Create audio directory
-        audio_dir = self._get_project_audio_dir()
-        audio_dir.mkdir(parents=True, exist_ok=True)
-
-        # Progress dialog — explicitly shown and pumped so it actually paints
-        # while the synchronous TTS subprocess blocks the event loop.
-        total = len(docs_to_generate)
-        progress = QProgressDialog(
-            "Preparing…", "Cancel", 0, total, self
-        )
-        progress.setWindowTitle("Generate All Audio")
-        progress.setWindowModality(Qt.WindowModal)
-        progress.setMinimumDuration(0)
-        progress.setAutoClose(False)
-        progress.setAutoReset(False)
-        progress.setValue(0)
-        progress.show()
-        QApplication.processEvents()
-
-        from piperscribe.tts.piper import PiperTts
-        from piperscribe.model.spans import subtract_spans
-
-        success_count = 0
-        errors = []
-
-        for i, doc in enumerate(docs_to_generate):
-            if progress.wasCanceled():
-                break
-
-            progress.setLabelText(
-                f"Document {i + 1} of {total}\n{doc.title}\n\n"
+        def label(d, number, total) -> str:
+            return (
+                f"Document {number} of {total}\n{d.title}\n\n"
                 "This can take a while for long documents. Please be patient."
             )
-            QApplication.processEvents()
 
-            try:
-                # Get text after exclusions
-                text = subtract_spans(doc.text, doc.exclusions).strip()
+        def on_all_done(g) -> None:
+            success_count = len(g["ok"])
+            errors = g["errors"]
+            if g["cancelled"]:
+                QMessageBox.information(
+                    self,
+                    "Generation Cancelled",
+                    f"Stopped. {success_count} of {len(items)} document(s) were generated."
+                )
+            elif errors:
+                error_msg = "\n".join(errors[:5])  # Show first 5 errors
+                if len(errors) > 5:
+                    error_msg += f"\n... and {len(errors) - 5} more errors"
+                QMessageBox.warning(
+                    self,
+                    "Generation Completed with Errors",
+                    f"Successfully generated: {success_count}/{len(items)}\n\n"
+                    f"Errors:\n{error_msg}"
+                )
+            else:
+                QMessageBox.information(
+                    self,
+                    "Generation Complete",
+                    f"Successfully generated audio for {success_count} document(s)."
+                )
 
-                # Generate filename
-                safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in doc.title)
-                safe_title = safe_title.strip().replace(' ', '-')[:50]
-                filename = f"{safe_title}-{doc.id[:8]}.wav"
-                output_path = audio_dir / filename
-
-                # Generate audio (blocking)
-                piper_settings = doc.piper if doc.piper.model_path else self.project.piper
-                tts = PiperTts(piper_settings)
-                tts.synthesize_to_wav(text, output_path)
-
-                # Update document metadata
-                doc.audio_path = str(output_path)
-                doc.audio_duration = len(text) / 150.0  # Rough estimate
-                doc.audio_signature = self._audio_signature(text, piper_settings)
-
-                success_count += 1
-
-            except Exception as e:
-                errors.append(f"{doc.title}: {e}")
-
-            # Advance bar and let the list reflect the new 🔊 icon
-            progress.setValue(i + 1)
-            self._rebuild_document_list()
-            QApplication.processEvents()
-
-        progress.close()
-
-        # Show results
-        if errors:
-            error_msg = "\n".join(errors[:5])  # Show first 5 errors
-            if len(errors) > 5:
-                error_msg += f"\n... and {len(errors) - 5} more errors"
-
-            QMessageBox.warning(
-                self,
-                "Generation Completed with Errors",
-                f"Successfully generated: {success_count}/{len(docs_to_generate)}\n\n"
-                f"Errors:\n{error_msg}"
-            )
-        else:
-            QMessageBox.information(
-                self,
-                "Generation Complete",
-                f"Successfully generated audio for {success_count} document(s)."
-            )
+        self._generate_queue(items, "Generate All Audio", label, on_all_done)
 
     def on_export_playlist(self) -> None:
         """Export M3U and JSON playlists for the project."""
@@ -2158,14 +2176,10 @@ class MainWindow(QMainWindow):
         # Check freshness before resuming a paused player, so changed settings are never skipped.
         if not self._audio_is_current(doc):
             # No audio yet, or the voice, settings, or text changed since it was made.
-            # Release the file so it can be replaced, regenerate with the progress dialog,
-            # then play.
+            # Release the file so it can be replaced, generate in the background, then play.
             self._player.stop()
             self._player.setSource(QUrl())
-            self.on_generate_document_audio()
-            if not self._audio_is_current(doc):
-                return
-            self.on_play_document_audio(doc)
+            self.on_generate_document_audio(then=lambda: self.on_play_document_audio(doc))
             return
 
         if self._player.playbackState() == QMediaPlayer.PausedState:
