@@ -43,3 +43,13 @@ select = ["E", "W", "F", "I", "B", "RUF"]
 # E501 (line length) is left off: long lines are a style choice, not a defect.
 # RUF001 is left off: the UI uses × and ⨯ on purpose as icons.
 ignore = ["E501", "RUF001"]
+
+[tool.mypy]
+python_version = "3.10"
+# The PySide6 stubs do not model every Qt enum and attribute, so these categories are
+# left off. Everything else is checked.
+disable_error_code = ["attr-defined", "arg-type", "call-overload", "assignment"]
+
+[[tool.mypy.overrides]]
+module = ["fitz", "fitz.*"]
+ignore_missing_imports = true

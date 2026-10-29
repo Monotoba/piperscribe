@@ -999,6 +999,8 @@ class MainWindow(QMainWindow):
 
     def _gen_next(self) -> None:
         g = self._gen
+        if g is None:
+            return
         if g["index"] >= len(g["items"]):
             self._gen_finish()
             return
@@ -1055,6 +1057,8 @@ class MainWindow(QMainWindow):
 
     def _gen_finish(self) -> None:
         g = self._gen
+        if g is None:
+            return
         self._gen = None
         g["progress"].close()
         self._rebuild_document_list()
