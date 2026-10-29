@@ -196,9 +196,15 @@ Rules run in list order, from top to bottom.
 
 ### Choosing a voice for the project
 
-Open **Edit → Preferences → Voice**. Choose a voice from the list. The path to
-its model file is shown beneath it. Click **Test Selected Voice** to hear a
-sample.
+Pick a voice in the **voice dropdown on the toolbar** or on the Voice tab of
+**Edit → Preferences**. Both set the project voice.
+
+Each document also keeps its own copy of the voice it was created with. A
+toolbar or Preferences change updates the project voice and every document still
+using the previous project voice. A voice you picked for a single document in
+**Document Settings** stays as it is.
+
+Click **Test Selected Voice** on the Voice tab to hear a sample.
 
 ### Voice settings
 

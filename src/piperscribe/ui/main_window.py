@@ -485,7 +485,14 @@ class MainWindow(QMainWindow):
     def on_voice_selected(self, idx: int) -> None:
         if idx < 0 or idx >= len(self._model_index):
             return
-        self._set_model_path(str(self._model_index[idx]))
+        previous = self.project.piper.model_path
+        chosen = str(self._model_index[idx])
+        self._set_model_path(chosen)
+        # Documents copy the project voice when they are imported. Move those copies to
+        # the new voice too. A voice picked for one document in Document Settings stays.
+        for doc in self.project.documents:
+            if not doc.piper.model_path or doc.piper.model_path == previous:
+                doc.piper.model_path = chosen
         self._persist_app_settings()
 
     def _refresh_view(self) -> None:

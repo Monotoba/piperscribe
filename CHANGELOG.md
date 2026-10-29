@@ -16,6 +16,7 @@
 - **File → Save Audio to Folder…** copies every document's audio into a folder you name.
 - PiperScribe warns you before quitting, starting a new project, or opening another project when audio exists only in the temporary folder. You can save it, discard it, or cancel.
 - **Help → Help Contents…** now includes the User Manual.
+- The toolbar voice dropdown now changes the voice of every document that uses the project voice. Before, documents kept the voice they were imported with, so the change had no effect.
 - **Play** regenerates audio when the voice, speed, noise settings, or text changed since it was made. Before, changing the voice had no effect until audio was generated again.
 
 ### Changed
