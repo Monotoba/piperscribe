@@ -1967,13 +1967,14 @@ class MainWindow(QMainWindow):
             return
 
         doc = self._get_current_document()
-        if not doc or not doc.audio_path:
+        if not doc:
             return
 
-        path = Path(doc.audio_path)
-        if not path.exists():
-            QMessageBox.warning(self, "Audio File Missing", f"Audio file not found:\n{path}")
-            return
+        if not doc.audio_path or not Path(doc.audio_path).exists():
+            # No audio yet: generate it first (with its progress and result dialogs), then play.
+            self.on_generate_document_audio()
+            if not doc.audio_path or not Path(doc.audio_path).exists():
+                return
 
         self.on_play_document_audio(doc)
 
