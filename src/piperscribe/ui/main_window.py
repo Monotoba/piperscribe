@@ -641,6 +641,9 @@ class MainWindow(QMainWindow):
         if current_item:
             current_id = current_item.data(Qt.UserRole)
 
+        # Rebuilding re-selects the current document. Block selection signals so the
+        # rebuild does not start playback or reload the editor.
+        self.doc_list.blockSignals(True)
         self.doc_list.clear()
 
         for doc in self.project.documents:
@@ -682,6 +685,7 @@ class MainWindow(QMainWindow):
         # If no selection and documents exist, select first
         if not self.doc_list.currentItem() and self.doc_list.count() > 0:
             self.doc_list.setCurrentRow(0)
+        self.doc_list.blockSignals(False)
 
         # Update button states
         self._update_document_buttons()
@@ -983,6 +987,11 @@ class MainWindow(QMainWindow):
         g["progress"].setValue(g["index"])
         g["progress"].setLabelText(g["label"](doc, g["index"] + 1, total))
         output = g["audio_dir"] / self._audio_filename(doc)
+        # Never overwrite a file the player is reading: stop it and release the file first.
+        playing = self._player.source().toLocalFile()
+        if playing and Path(playing) == output:
+            self._player.stop()
+            self._player.setSource(QUrl())
 
         run = PiperRun(self, piper, text, output)
         run.finished.connect(
