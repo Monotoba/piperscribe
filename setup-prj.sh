@@ -11,7 +11,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 echo "[1/5] Creating or reusing uv virtual environment…"
-uv venv
+uv venv --allow-existing
 
 # shellcheck disable=SC1091
 source .venv/bin/activate
