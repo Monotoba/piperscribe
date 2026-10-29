@@ -321,7 +321,6 @@ class PreferencesDialog(QDialog):
 
     def _test_voice(self) -> None:
         """Test the selected voice with sample text."""
-        from PySide6.QtCore import QProcess
         import tempfile
 
         # Check Piper is installed

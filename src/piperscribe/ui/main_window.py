@@ -6,8 +6,7 @@ import tempfile
 from pathlib import Path
 
 
-from PySide6.QtCore import QTimer
-from PySide6.QtCore import Qt, QProcess, QTimer, QPoint, QUrl
+from PySide6.QtCore import Qt, QProcess, QPoint, QUrl
 from PySide6.QtGui import QAction, QCloseEvent, QTextCharFormat, QTextCursor, QPalette, QColor
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtWidgets import (
