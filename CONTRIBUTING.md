@@ -32,6 +32,15 @@ See [INSTALL.md](INSTALL.md).
 
 ## Quality gates
 
+Set up the pre-commit hook once per clone. It runs the same checks as `./verify.sh` before every commit:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook needs [uv](https://docs.astral.sh/uv/), because `verify.sh` runs `setup-prj.sh`. CI runs the same checks on every push and pull request, so the hook is a convenience and not a requirement.
+
+
 Every change must pass the project gates before it is committed:
 
 ```bash
