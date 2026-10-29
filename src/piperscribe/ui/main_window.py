@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QTimer
 from PySide6.QtCore import Qt, QProcess, QTimer, QPoint, QUrl
-from PySide6.QtGui import QAction, QTextCharFormat, QTextCursor, QPalette, QColor
+from PySide6.QtGui import QAction, QCloseEvent, QTextCharFormat, QTextCursor, QPalette, QColor
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -166,6 +167,10 @@ class MainWindow(QMainWindow):
         act_export = QAction("Export WAV…", self)
         act_export.triggered.connect(self.on_export_wav)
         m_file.addAction(act_export)
+
+        act_save_audio = QAction("Save Audio to Folder…", self)
+        act_save_audio.triggered.connect(self.on_save_audio_to_folder)
+        m_file.addAction(act_save_audio)
 
         m_file.addSeparator()
 
@@ -929,11 +934,105 @@ class MainWindow(QMainWindow):
         return project_path.parent / f"{stem}_audio"
 
     def _get_project_audio_dir(self) -> Path:
-        """Get the audio directory for the current project."""
+        """Get the folder that generated audio is written to.
+
+        A folder set in Preferences wins. Otherwise audio goes next to the project
+        file, or to the temp folder when the project has never been saved.
+        """
+        custom = (self._app_settings.audio_output_dir or "").strip()
+        if custom:
+            return Path(custom).expanduser()
         cpp = getattr(self, "current_project_path", None)
         if cpp:
             return self._audio_dir_for_project(Path(cpp))
+        return self._temp_audio_dir()
+
+    def _temp_audio_dir(self) -> Path:
         return Path(tempfile.gettempdir()) / "piperscribe_audio"
+
+    def _temp_audio_docs(self) -> list:
+        """Documents whose audio exists only in the temp folder, which the OS may clear."""
+        temp_dir = self._temp_audio_dir().resolve()
+        found = []
+        for doc in self.project.documents:
+            if not doc.audio_path or not Path(doc.audio_path).exists():
+                continue
+            try:
+                if Path(doc.audio_path).resolve().is_relative_to(temp_dir):
+                    found.append(doc)
+            except OSError:
+                continue
+        return found
+
+    def on_save_audio_to_folder(self) -> Path | None:
+        """Copy every document's generated audio into a folder with a name you choose.
+
+        Returns the folder, or None if the user cancelled or nothing was saved.
+        Files that already exist in the folder with the same name are replaced.
+        """
+        import shutil
+
+        docs = [d for d in self.project.documents if d.audio_path and Path(d.audio_path).exists()]
+        if not docs:
+            QMessageBox.information(self, "Save Audio", "No generated audio to save. Generate audio first.")
+            return None
+
+        parent = QFileDialog.getExistingDirectory(
+            self, "Choose a folder to save the audio in", str(Path.home())
+        )
+        if not parent:
+            return None
+
+        default_name = self.project.title or "PiperScribe Audio"
+        name, ok = QInputDialog.getText(self, "Save Audio", "Name for the audio folder:", text=default_name)
+        if not ok or not name.strip():
+            return None
+        safe_name = "".join(c if c.isalnum() or c in " -_." else "_" for c in name.strip())
+
+        dest = Path(parent) / safe_name
+        try:
+            dest.mkdir(parents=True, exist_ok=True)
+            for doc in docs:
+                src = Path(doc.audio_path)
+                dst = dest / src.name
+                if src.resolve() != dst.resolve():
+                    shutil.copy2(src, dst)
+                doc.audio_path = str(dst)
+        except OSError as e:
+            QMessageBox.critical(self, "Save Audio", f"Could not save the audio:\n\n{e}")
+            return None
+
+        self._rebuild_document_list()
+        QMessageBox.information(
+            self, "Save Audio", f"Saved {len(docs)} audio file(s) to:\n{dest}"
+        )
+        return dest
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Warn before quitting when generated audio would be lost."""
+        at_risk = self._temp_audio_docs()
+        if at_risk:
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Warning)
+            box.setWindowTitle("Generated audio not saved")
+            box.setText(
+                f"{len(at_risk)} audio file(s) are only in the temporary folder, "
+                "and the system may delete them."
+            )
+            box.setInformativeText("Save them to a folder before you quit?")
+            save_btn = box.addButton("Save Audio to Folder…", QMessageBox.AcceptRole)
+            quit_btn = box.addButton("Quit Without Saving", QMessageBox.DestructiveRole)
+            box.addButton("Cancel", QMessageBox.RejectRole)
+            box.exec()
+            clicked = box.clickedButton()
+            if clicked is save_btn:
+                if self.on_save_audio_to_folder() is None:
+                    event.ignore()
+                    return
+            elif clicked is not quit_btn:
+                event.ignore()
+                return
+        super().closeEvent(event)
 
     def _bundle_audio_files(self, project_path: Path) -> None:
         """Copy each document's audio file into the project's audio directory.
@@ -1371,6 +1470,7 @@ class MainWindow(QMainWindow):
             recent_files=self._app_settings.recent_files,
             recent_projects=self._app_settings.recent_projects,
             audio_player=self._app_settings.audio_player,
+            audio_output_dir=self._app_settings.audio_output_dir,
         )
         try:
             save_settings(s)
@@ -1417,6 +1517,7 @@ class MainWindow(QMainWindow):
         self._app_settings.rules = new.rules
         self._app_settings.auto_apply_rules = getattr(new, "auto_apply_rules", True)
         self._app_settings.audio_player = new.audio_player
+        self._app_settings.audio_output_dir = new.audio_output_dir
         # Update font/color settings
         self._app_settings.font_family = new.font_family
         self._app_settings.font_size = new.font_size
@@ -1451,6 +1552,7 @@ class MainWindow(QMainWindow):
             rules=self._app_settings.rules,
             auto_apply_rules=getattr(self._app_settings, "auto_apply_rules", True),
             audio_player=self._app_settings.audio_player,
+            audio_output_dir=self._app_settings.audio_output_dir,
         )
         doc = self._get_current_document()
         doc_text = doc.text if doc else ""

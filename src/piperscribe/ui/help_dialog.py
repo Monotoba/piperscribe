@@ -87,6 +87,14 @@ class HelpDialog(QDialog):
             item.setData(Qt.UserRole, md_file.stem)  # Store original filename
             self.topic_list.addItem(item)
 
+        # The full user manual lives beside the help folder and is shown first.
+        manual = help_dir.parent / "USER_MANUAL.md"
+        if manual.exists():
+            self.help_files["User Manual"] = manual
+            item = QListWidgetItem("User Manual")
+            item.setData(Qt.UserRole, manual.stem)
+            self.topic_list.insertItem(0, item)
+
         if not self.help_files:
             self.content_browser.setHtml(
                 "<h1>No Help Files Found</h1>"

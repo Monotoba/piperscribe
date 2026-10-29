@@ -49,6 +49,8 @@ class AppSettings:
     voice_repositories: list[str] | None = None
     # WAV player for previews: "" = detect and save, "auto" = detect every run, or a player name
     audio_player: str = ""
+    # Folder for generated audio; empty = next to the project file (temp folder if unsaved)
+    audio_output_dir: str = ""
 
     def __post_init__(self) -> None:
         if self.rules is None:
@@ -82,6 +84,7 @@ class AppSettings:
             "use_default_colors": bool(self.use_default_colors),
             "voice_repositories": list(self.voice_repositories or []),
             "audio_player": str(self.audio_player),
+            "audio_output_dir": str(self.audio_output_dir),
             "rules": [
                 {
                     "name": r.name,
@@ -117,6 +120,7 @@ class AppSettings:
         s.use_default_colors = bool(d.get("use_default_colors", True))
         s.voice_repositories = list(d.get("voice_repositories", []))
         s.audio_player = str(d.get("audio_player", ""))
+        s.audio_output_dir = str(d.get("audio_output_dir", ""))
         rules_d = d.get("rules")
         if isinstance(rules_d, list):
             parsed: List[RegexRule] = []

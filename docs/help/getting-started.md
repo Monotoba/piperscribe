@@ -1,87 +1,31 @@
-# Getting Started with PiperScribe
+# Getting Started
 
-## What is PiperScribe?
+PiperScribe turns documents into speech with Piper voices. It runs on your
+computer, so your text stays on your machine.
 
-PiperScribe is a desktop application for converting text to speech using Piper TTS. It provides a user-friendly interface for:
+## Before you start
 
-- Managing text documents with TTS-specific preprocessing
-- Applying regex rules to clean and format text
-- Generating high-quality speech with Piper voices
-- Previewing and exporting audio files
+1. Install Piper, and make sure the `piper` command runs from a terminal.
+   Open **Edit → Preferences → Voice** and click **Test Piper Installation**.
+2. Get a voice. Use **Tools → Browse && Download Voices…**, or **Tools → Import Voice Model…**
+   if you already have a `.onnx` file.
+3. In the Voice tab, click **Test Selected Voice** and check that you hear a sample.
 
-## Prerequisites
+## Make your first audio
 
-### Installing Piper TTS
+1. **File → Import Document(s)…** (Ctrl+I), or type text into the editor.
+2. Select text you don't want read, and click **Exclude selection** on the selection toolbar.
+3. Click **Preview selection** to hear a passage.
+4. **File → Generate All Audio** to make audio for every enabled document.
+5. **File → Save Project…** before you go further. Audio is kept next to the project file.
+6. **File → Export WAV…** to make one WAV file of the whole project.
 
-PiperScribe requires Piper TTS to be installed on your system:
+## Saving your audio
 
-1. Download Piper from [github.com/rhasspy/piper](https://github.com/rhasspy/piper)
-2. Follow the installation instructions for your platform
-3. Ensure `piper` is available in your system PATH
-4. Test installation: Open Preferences → Voice tab → Click "Test Piper Installation"
+Audio made before you save the project goes to a temporary folder, which the
+system may clear. PiperScribe warns you when you quit with audio like that.
+Use **File → Save Audio to Folder…** to copy it into a folder with a name you
+choose. To pick a permanent folder for all generated audio, set **Audio folder**
+in **Edit → Preferences → Voice**.
 
-### Installing Voices
-
-Piper voices are required for speech generation:
-
-1. Open **Tools → Browse & Download Voices**
-2. Browse available voices by language and quality
-3. Click **Download Voice** for your preferred voice
-4. Voices install to `~/.local/share/piper/voices/`
-
-## Creating Your First Project
-
-### Quick Start
-
-1. **Launch PiperScribe**
-   - The main window displays with an empty document
-
-2. **Enter or Import Text**
-   - Type text directly into the editor, or
-   - Use **File → Import** to load from TXT, DOCX, PDF, or Markdown
-
-3. **Select a Voice**
-   - Go to **Edit → Preferences → Voice** tab
-   - Choose a voice from the dropdown
-   - Click **Test Selected Voice** to hear a sample
-
-4. **Generate Speech**
-   - Click **Generate All** to process the entire document
-   - Or select text and use the selection toolbar for partial generation
-   - Audio plays automatically when complete
-
-5. **Export Audio**
-   - Use **File → Export Audio** to save as WAV file
-   - Choose your preferred export location
-
-## Basic Workflow
-
-```
-1. Create/Import Text
-   ↓
-2. Apply Regex Rules (optional)
-   ↓
-3. Select Voice
-   ↓
-4. Generate Speech
-   ↓
-5. Preview/Listen
-   ↓
-6. Export Audio
-```
-
-## Next Steps
-
-- **Learn about text preprocessing**: See [User Guide](user-guide.md) → Regex Rules
-- **Explore keyboard shortcuts**: See [Keyboard Shortcuts](keyboard-shortcuts.md)
-- **Troubleshoot issues**: See [Troubleshooting](troubleshooting.md)
-
-## Project Files
-
-PiperScribe projects are saved as `.json` files containing:
-- Document text content
-- Applied regex rules
-- Voice settings
-- TTS parameters (speed, noise scales)
-
-Save your work with **File → Save Project** (Ctrl+S)
+For the full guide, open **Help → Help Contents…** and choose **User Manual**.

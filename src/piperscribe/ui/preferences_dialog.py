@@ -178,6 +178,19 @@ class PreferencesDialog(QDialog):
         self.audio_player.setCurrentIndex(max(player_index, 0))
         vf.addRow("Audio player:", self.audio_player)
 
+        # Where generated audio is written. Empty = next to the project file.
+        self.audio_output_dir = QLineEdit(current.audio_output_dir or "")
+        self.audio_output_dir.setPlaceholderText("Empty: next to the project file")
+        self.audio_output_dir.setToolTip(
+            "Folder for generated audio. Leave empty to keep audio in a folder next to the project file."
+        )
+        btn_output_browse = QPushButton("Browse…")
+        btn_output_browse.clicked.connect(self._browse_audio_output_dir)
+        output_row = QHBoxLayout()
+        output_row.addWidget(self.audio_output_dir, 1)
+        output_row.addWidget(btn_output_browse)
+        vf.addRow("Audio folder:", output_row)
+
         vl.addLayout(vf)
 
         # Voice management buttons
@@ -299,6 +312,12 @@ class PreferencesDialog(QDialog):
             QMessageBox.warning(self, "Piper not found", st.error or "`piper` not found on PATH.")
             return
         QMessageBox.information(self, "Piper OK", f"Found Piper at:\n{st.path}")
+
+    def _browse_audio_output_dir(self) -> None:
+        start = self.audio_output_dir.text().strip() or str(Path.home())
+        chosen = QFileDialog.getExistingDirectory(self, "Choose a folder for generated audio", start)
+        if chosen:
+            self.audio_output_dir.setText(chosen)
 
     def _test_voice(self) -> None:
         """Test the selected voice with sample text."""
@@ -509,4 +528,5 @@ class PreferencesDialog(QDialog):
             doc_text_color=self._text_color,
             use_default_colors=self.use_default_colors.isChecked(),
             audio_player=self.audio_player.currentData() or "",
+            audio_output_dir=self.audio_output_dir.text().strip(),
         )
