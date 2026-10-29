@@ -4,6 +4,7 @@
 |----------|--------|
 | Ctrl+N | New Project |
 | Ctrl+I | Import Document(s) |
+| Ctrl+O | Open Document(s) (same as Import) |
 | Ctrl+F | Find |
 | Ctrl+Q | Quit |
 | F1 | Help Contents |

@@ -97,7 +97,7 @@ project when nothing is selected.
 
 | Menu | Items |
 |------|-------|
-| **File** | New Project, Import Document(s)…, Save Project…, Load Project…, Close Project, Recent Files, Recent Projects, Export WAV…, Save Audio to Folder…, Generate All Audio, Export Playlist…, Quit |
+| **File** | New Project, Import Document(s)…, Open Document(s)…, Save Project…, Load Project…, Close Project, Recent Files, Recent Projects, Export WAV…, Save Audio to Folder…, Generate All Audio, Export Playlist…, Quit |
 | **Edit** | Preferences…, Find… |
 | **Tools** | Exclude selection, Include selection, Preview selection, Stop Preview, Rules…, Reapply Rules, Import Voice Model…, Browse && Download Voices… |
 | **Help** | Help Contents…, About PiperScribe |
@@ -136,7 +136,7 @@ Use **File → Save Audio to Folder…** at any time to copy the audio somewhere
 
 ## 5. Importing documents
 
-Choose **File → Import Document(s)…** (Ctrl+I), or click **Import…** above the
+Choose **File → Import Document(s)…** (Ctrl+I) or **File → Open Document(s)…** (Ctrl+O). Both do the same thing. Click **Import…** above the
 document list. You can select several files at once. Each one is added as its
 own document, and the existing documents stay in the project.
 
@@ -359,6 +359,7 @@ between sessions.
 |----------|--------|
 | Ctrl+N | New Project |
 | Ctrl+I | Import Document(s) |
+| Ctrl+O | Open Document(s) (same as Import) |
 | Ctrl+F | Find |
 | Ctrl+Q | Quit |
 | F1 | Help Contents |

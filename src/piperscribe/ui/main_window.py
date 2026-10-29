@@ -149,6 +149,12 @@ class MainWindow(QMainWindow):
         act_import.triggered.connect(self.on_import_documents)
         m_file.addAction(act_import)
 
+        # Open does the same as Import: it adds the chosen files to the current project.
+        act_open = QAction("Open Document(s)…", self)
+        act_open.setShortcut("Ctrl+O")
+        act_open.triggered.connect(self.on_import_documents)
+        m_file.addAction(act_open)
+
         act_save_proj = QAction("Save Project…", self)
         act_save_proj.triggered.connect(self.on_save_project)
         m_file.addAction(act_save_proj)
