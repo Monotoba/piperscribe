@@ -56,3 +56,6 @@ Thumbs.db
 
 # Test scripts (temporary)
 test_*.py
+
+# Personal, unpublished writing (never commit)
+on_reader_the_idiot-light-version.txt
