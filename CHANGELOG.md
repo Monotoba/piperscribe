@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.26 - 2026-10-29
+
+### Added
+- Automated checks on GitHub for every push and pull request: lint, and the test suite on Linux, macOS, and Windows, with Python 3.10 through 3.14.
+- A release workflow. Pushing a version tag builds the wheel and source package and attaches them to the GitHub release.
+- CI and release badges in the README.
+
+### Fixed
+- Removed stray empty files with colons in their names, which Windows could not check out.
+- The package build no longer shows a setuptools warning about the license field.
+
 ## 0.1.25 - 2026-10-29
 
 ### Fixed
