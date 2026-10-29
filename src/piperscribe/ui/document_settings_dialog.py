@@ -207,18 +207,17 @@ class DocumentSettingsDialog(QDialog):
             )
 
     def _play_audio(self, wav_path: Path):
-        """Play audio file using system player."""
+        """Play audio file with the player chosen in settings, or the one found for this system."""
         import subprocess
-        import sys
 
+        from piperscribe.audio.player import build_command, resolve_player
+        from piperscribe.settings import load_settings
+
+        resolution = resolve_player(load_settings().audio_player)
+        if resolution.spec is None:
+            return  # No player available; the test result is still reported
         try:
-            if sys.platform == "linux":
-                subprocess.run(["aplay", str(wav_path)], check=False)
-            elif sys.platform == "darwin":
-                subprocess.run(["afplay", str(wav_path)], check=False)
-            elif sys.platform == "win32":
-                import winsound
-                winsound.PlaySound(str(wav_path), winsound.SND_FILENAME)
+            subprocess.run(build_command(resolution.spec, wav_path), check=False)
         except Exception:
             pass  # Silent fail if playback not available
 

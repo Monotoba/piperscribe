@@ -17,7 +17,7 @@ class PiperTts:
         if not status.found:
             raise RuntimeError(status.error or "`piper` is not installed or not runnable.")
         if not self.settings.model_path:
-            raise RuntimeError("Piper model is not set. Choose a voice/model in the GUI.")
+            raise RuntimeError(f"Piper model is not set. Choose a voice/model in the GUI. Data: {self.settings}")
         cmd = ["piper", *self.settings.to_args(), "--output_file", str(output_wav)]
         subprocess.run(cmd, input=text, text=True, check=True)
         return TtsResult(output_wav=output_wav)

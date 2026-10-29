@@ -29,6 +29,7 @@ def settings_path() -> Path:
 class AppSettings:
     theme: str = "system"  # system | light | dark
     model_path: str = ""
+    voice_dir: str = ""  # directory scanned for voices; empty = use defaults
     speed: float = 1.0
     noise_scale: float = 0.667
     noise_w: float = 0.8
@@ -46,6 +47,8 @@ class AppSettings:
     use_default_colors: bool = True
     # Voice repositories
     voice_repositories: list[str] | None = None
+    # WAV player for previews: "" = detect and save, "auto" = detect every run, or a player name
+    audio_player: str = ""
 
     def __post_init__(self) -> None:
         if self.rules is None:
@@ -63,6 +66,7 @@ class AppSettings:
         return {
             "theme": self.theme,
             "model_path": self.model_path,
+            "voice_dir": self.voice_dir,
             "speed": float(self.speed),
             "noise_scale": float(self.noise_scale),
             "noise_w": float(self.noise_w),
@@ -77,6 +81,7 @@ class AppSettings:
             "doc_text_color": str(self.doc_text_color),
             "use_default_colors": bool(self.use_default_colors),
             "voice_repositories": list(self.voice_repositories or []),
+            "audio_player": str(self.audio_player),
             "rules": [
                 {
                     "name": r.name,
@@ -96,6 +101,7 @@ class AppSettings:
         s = AppSettings()
         s.theme = str(d.get("theme", s.theme))
         s.model_path = str(d.get("model_path", s.model_path))
+        s.voice_dir = str(d.get("voice_dir", s.voice_dir))
         s.speed = float(d.get("speed", s.speed))
         s.noise_scale = float(d.get("noise_scale", s.noise_scale))
         s.noise_w = float(d.get("noise_w", s.noise_w))
@@ -110,6 +116,7 @@ class AppSettings:
         s.doc_text_color = str(d.get("doc_text_color", ""))
         s.use_default_colors = bool(d.get("use_default_colors", True))
         s.voice_repositories = list(d.get("voice_repositories", []))
+        s.audio_player = str(d.get("audio_player", ""))
         rules_d = d.get("rules")
         if isinstance(rules_d, list):
             parsed: List[RegexRule] = []

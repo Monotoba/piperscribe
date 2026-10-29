@@ -5,12 +5,16 @@ import os
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QProcess, QTimer, QPoint
+
+from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QProcess, QTimer, QPoint, QUrl
 from PySide6.QtGui import QAction, QTextCharFormat, QTextCursor, QPalette, QColor
+from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
+    QDialog,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -23,6 +27,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QDoubleSpinBox,
     QSplitter,
+    QStyle,
+    QProxyStyle,
     QTextEdit,
     QToolBar,
     QVBoxLayout,
@@ -30,14 +36,25 @@ from PySide6.QtWidgets import (
     QProgressDialog,
 )
 
+from piperscribe.audio.player import build_command, resolve_player
+from piperscribe.hidpi import clamp_after_show, clamp_window_to_screen
 from piperscribe.importers.registry import import_any
-from piperscribe.model.document import Document, DocumentProject
+from piperscribe.model.document import Document, DocumentProject, PiperSettings
 from piperscribe.model.spans import Span, normalize_spans
 from piperscribe.rules import apply_rules
-from piperscribe.audio.export import included_text
 from piperscribe.tts.piper_utils import check_piper_installed, iter_model_paths, choose_default_model
 from piperscribe.settings import AppSettings, load_settings, save_settings
 from piperscribe.ui.preferences_dialog import PreferencesDialog
+
+
+class MenuOffsetStyle(QProxyStyle):
+    """Custom style to manually offset menu popups for HDPI alignment."""
+    def pixelMetric(self, metric, option=None, widget=None):
+        if metric == QStyle.PixelMetric.PM_SubMenuOverlap:
+            # A negative value shifts the menu popup to the left.
+            # Adjust this value (-30 to -60) to close the alignment gap.
+            return -50
+        return super().pixelMetric(metric, option, widget)
 
 
 class MainWindow(QMainWindow):
@@ -58,21 +75,36 @@ class MainWindow(QMainWindow):
         self._tts_proc: QProcess | None = None
         self._play_proc: QProcess | None = None
         self._progress: QProgressDialog | None = None
+        self.current_project_path: str | None = None
+
+        # Audio player
+        self._audio_output = QAudioOutput()
+        self._player = QMediaPlayer()
+        self._player.setAudioOutput(self._audio_output)
+        self._player.playbackStateChanged.connect(self._on_playback_state_changed)
 
         self._build_ui()
         self._init_piper_environment()
         self._refresh_view()
 
+        # Ensure a default model is selected if none was set in settings
+        if not self.project.piper.model_path:
+            self._select_default_model()
+
+    def clamp_to_available_screen(self) -> None:
+        """Keep the main window usable after document/layout changes."""
+        clamp_window_to_screen(self)
+        clamp_after_show(self)
+
     def _build_ui(self) -> None:
         # Menus
         menubar = self.menuBar()
+        menubar.setNativeMenuBar(False)
+
         m_file = menubar.addMenu("&File")
         m_edit = menubar.addMenu("&Edit")
         m_tools = menubar.addMenu("&Tools")
         m_help = menubar.addMenu("&Help")
-        menubar.setNativeMenuBar(False)
-
-        # Recent
         self._menu_recent_files = m_file.addMenu("Recent Files")
         self._menu_recent_projects = m_file.addMenu("Recent Projects")
         self._menu_recent_files.aboutToShow.connect(self._rebuild_recent_files_menu)
@@ -88,8 +120,23 @@ class MainWindow(QMainWindow):
         self.act_preview = QAction("Preview selection", self)
         self.act_preview.triggered.connect(self.on_preview_selection)
 
-        self.act_stop = QAction("Stop", self)
-        self.act_stop.triggered.connect(self.on_stop_preview)
+        self.act_stop_preview = QAction("Stop Preview", self)
+        self.act_stop_preview.triggered.connect(self.on_stop_preview)
+
+        # Audio player actions
+        self.act_play = QAction("▶ Play", self)
+        self.act_play.setToolTip("Play audio for the active document")
+        self.act_play.triggered.connect(self.on_play_audio)
+
+        self.act_pause = QAction("⏸ Pause", self)
+        self.act_pause.setToolTip("Pause audio playback")
+        self.act_pause.triggered.connect(self.on_pause_audio)
+        self.act_pause.setEnabled(False)
+
+        self.act_stop = QAction("⏹ Stop", self)
+        self.act_stop.setToolTip("Stop audio playback")
+        self.act_stop.triggered.connect(self.on_stop_audio)
+        self.act_stop.setEnabled(False)
 
         act_new_project = QAction("New Project", self)
         act_new_project.setShortcut("Ctrl+N")
@@ -149,7 +196,7 @@ class MainWindow(QMainWindow):
         m_tools.addAction(self.act_exclude)
         m_tools.addAction(self.act_include)
         m_tools.addAction(self.act_preview)
-        m_tools.addAction(self.act_stop)
+        m_tools.addAction(self.act_stop_preview)
         m_tools.addSeparator()
 
         act_rules = QAction("Rules…", self)
@@ -189,10 +236,21 @@ class MainWindow(QMainWindow):
         self.selection_tb.addAction(self.act_exclude)
         self.selection_tb.addAction(self.act_include)
         self.selection_tb.addAction(self.act_preview)
-        self.selection_tb.addAction(self.act_stop)
+        self.selection_tb.addAction(self.act_stop_preview)
 
         self.addToolBar(Qt.TopToolBarArea, self.selection_tb)
         self.selection_tb.setVisible(bool(getattr(self._app_settings, "show_selection_toolbar", True)))
+
+        # Audio Player Toolbar
+        self.audio_tb = QToolBar("Audio Player", self)
+        self.audio_tb.setMovable(True)
+        self.audio_tb.setFloatable(True)
+        self.audio_tb.setAllowedAreas(Qt.TopToolBarArea | Qt.BottomToolBarArea)
+        self.audio_tb.addAction(self.act_play)
+        self.audio_tb.addAction(self.act_pause)
+        self.audio_tb.addAction(self.act_stop)
+
+        self.addToolBar(Qt.TopToolBarArea, self.audio_tb)
 
         root = QWidget()
         self.setCentralWidget(root)
@@ -208,17 +266,7 @@ class MainWindow(QMainWindow):
         self.voice_combo = QComboBox()
         self.voice_combo.setToolTip("Select a Piper .onnx voice/model discovered on this system")
         self.voice_combo.currentIndexChanged.connect(self.on_voice_selected)
-        settings_row.addWidget(self.voice_combo)
-
-        settings_row.addWidget(QLabel("Model path:"))
-        self.model_path = QLineEdit()
-        self.model_path.setPlaceholderText("~/.local/share/piper/voices/xxx.onnx")
-        self.model_path.editingFinished.connect(self.on_settings_changed)
-        settings_row.addWidget(self.model_path, 1)
-
-        btn_browse_model = QPushButton("Browse…")
-        btn_browse_model.clicked.connect(self.on_browse_model)
-        settings_row.addWidget(btn_browse_model)
+        settings_row.addWidget(self.voice_combo, 1)
 
         settings_row.addWidget(QLabel("Theme:"))
         self.theme_combo = QComboBox()
@@ -278,6 +326,8 @@ class MainWindow(QMainWindow):
         buttons.addStretch(1)
 
         self.stats = QLabel("")
+        # Wrap instead of widening the window: a long status line must not set the minimum width.
+        self.stats.setWordWrap(True)
         self.stats.setTextInteractionFlags(Qt.TextSelectableByMouse)
         buttons.addWidget(self.stats)
 
@@ -367,6 +417,25 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(splitter, 1)
 
+    def _scan_voice_models(self) -> list[Path]:
+        """Discover voice models, preferring the configured ``voice_dir`` if set."""
+        vd = (getattr(self._app_settings, "voice_dir", "") or "").strip()
+        if vd:
+            return iter_model_paths([Path(vd).expanduser()])
+        return iter_model_paths()
+
+    def _populate_voice_combo(self) -> None:
+        self.voice_combo.blockSignals(True)
+        self.voice_combo.clear()
+        if not self._model_index:
+            self.voice_combo.addItem("(no voices found)")
+            self.voice_combo.setEnabled(False)
+        else:
+            self.voice_combo.setEnabled(True)
+            for p in self._model_index:
+                self.voice_combo.addItem(p.stem)
+        self.voice_combo.blockSignals(False)
+
     def _init_piper_environment(self) -> None:
         status = check_piper_installed()
         if not status.found:
@@ -378,16 +447,10 @@ class MainWindow(QMainWindow):
                 "You can still import and mark exclusions, but Preview/Export will fail until Piper is installed.",
             )
 
-        self._model_index = iter_model_paths()
-        self.voice_combo.clear()
-        if not self._model_index:
-            self.voice_combo.addItem("(no voices found)")
-            self.voice_combo.setEnabled(False)
-        else:
-            self.voice_combo.setEnabled(True)
-            for p in self._model_index:
-                self.voice_combo.addItem(p.stem)
+        self._model_index = self._scan_voice_models()
+        self._populate_voice_combo()
 
+        if self._model_index:
             if self.project.piper.model_path:
                 self._select_voice_by_path(self.project.piper.model_path)
             else:
@@ -411,7 +474,7 @@ class MainWindow(QMainWindow):
                     return
 
     def _set_model_path(self, path: str) -> None:
-        self.model_path.setText(path)
+        self.project.piper.model_path = os.path.expanduser(path)
         self._sync_piper_settings_from_ui()
 
     def on_voice_selected(self, idx: int) -> None:
@@ -424,7 +487,6 @@ class MainWindow(QMainWindow):
         self._rebuild_document_list()
         self._apply_theme(self.project.theme)
         self._apply_document_appearance()
-        self.model_path.setText(self.project.piper.model_path)
         # Theme combo
         t = (self.project.theme or "system").lower()
         self.theme_combo.blockSignals(True)
@@ -440,6 +502,18 @@ class MainWindow(QMainWindow):
         self._recompute_exclusions()
         self._apply_exclusion_formatting()
         self._update_stats()
+
+    def _select_default_model(self) -> None:
+        """Select a default model if none is configured."""
+        if not self._model_index:
+            # No models available, nothing to do
+            return
+
+        # If we have models, select the first one as default
+        if self._model_index:
+            default_model_path = str(self._model_index[0])
+            self._set_model_path(default_model_path)
+            self._persist_app_settings()
 
     @staticmethod
     def _speed_to_length_scale(speed: float) -> float:
@@ -472,6 +546,15 @@ class MainWindow(QMainWindow):
         # Update exclusion formatting
         self._apply_exclusion_formatting()
         self._update_stats()
+        
+        # Add max window size exclusion
+        self.clamp_to_available_screen()
+
+        # Play audio if it exists
+        if doc.audio_path and Path(doc.audio_path).exists():
+            self.on_play_document_audio(doc)
+        else:
+            self.on_stop_audio()
 
     def _rebuild_document_list(self) -> None:
         """Rebuild the document list with status icons."""
@@ -546,6 +629,11 @@ class MainWindow(QMainWindow):
         settings_action.triggered.connect(self.on_document_settings)
 
         menu.addSeparator()
+
+        # Play Audio action
+        play_action = menu.addAction("Play Audio")
+        play_action.setEnabled(bool(doc and doc.audio_path and Path(doc.audio_path).exists()))
+        play_action.triggered.connect(lambda: self.on_play_document_audio(doc))
 
         # Generate Audio action
         generate_action = menu.addAction("Generate Audio")
@@ -627,7 +715,7 @@ class MainWindow(QMainWindow):
                 id=Document.generate_id(),
                 title="Document 1",
                 text="",
-                piper=self.project.default_piper,
+                piper=PiperSettings.from_dict(self.project.piper.as_dict()),
                 order=0,
                 enabled=True,
             )
@@ -670,7 +758,7 @@ class MainWindow(QMainWindow):
                 title=res.title or p.stem,
                 text=res.text,
                 source_path=str(p),
-                piper=self.project.default_piper,
+                piper=PiperSettings.from_dict(self.project.piper.as_dict()),
                 order=len(self.project.documents),
                 enabled=True,
             )
@@ -743,7 +831,7 @@ class MainWindow(QMainWindow):
         from piperscribe.ui.document_settings_dialog import DocumentSettingsDialog
 
         dlg = DocumentSettingsDialog(self, doc)
-        if dlg.exec() == dlg.Accepted:
+        if dlg.exec() == QDialog.Accepted:
             dlg.apply_settings()
             self._rebuild_document_list()
 
@@ -801,7 +889,8 @@ class MainWindow(QMainWindow):
             progress.setWindowModality(Qt.WindowModal)
             progress.show()
 
-            tts = PiperTts(doc.piper)
+            piper_settings = doc.piper if doc.piper.model_path else self.project.piper
+            tts = PiperTts(piper_settings)
             tts.synthesize_to_wav(text, output_path)
 
             # Update document metadata
@@ -826,15 +915,72 @@ class MainWindow(QMainWindow):
                 f"Failed to generate audio:\n\n{e}"
             )
 
+    def _audio_dir_for_project(self, project_path: Path) -> Path:
+        """Canonical audio directory for a project file: ``{name-without-suffixes}_audio``."""
+        name = project_path.name
+        if name.endswith(".abproj.json"):
+            stem = name[: -len(".abproj.json")]
+        elif name.endswith(".json"):
+            stem = name[: -len(".json")]
+        else:
+            stem = project_path.stem
+        return project_path.parent / f"{stem}_audio"
+
     def _get_project_audio_dir(self) -> Path:
         """Get the audio directory for the current project."""
-        if hasattr(self, 'current_project_path') and self.current_project_path:
-            # Create audio directory next to project file
-            project_path = Path(self.current_project_path)
-            return project_path.parent / f"{project_path.stem}_audio"
-        else:
-            # Use temp directory for unsaved projects
-            return Path(tempfile.gettempdir()) / "piperscribe_audio"
+        cpp = getattr(self, "current_project_path", None)
+        if cpp:
+            return self._audio_dir_for_project(Path(cpp))
+        return Path(tempfile.gettempdir()) / "piperscribe_audio"
+
+    def _bundle_audio_files(self, project_path: Path) -> None:
+        """Copy each document's audio file into the project's audio directory.
+
+        Mutates ``doc.audio_path`` in-place to point at the bundled location.
+        Files already in the bundle dir are left in place.
+        """
+        import shutil
+        audio_dir = self._audio_dir_for_project(project_path)
+        for doc in self.project.documents:
+            if not doc.audio_path:
+                continue
+            src = Path(doc.audio_path)
+            if not src.exists():
+                continue
+            audio_dir.mkdir(parents=True, exist_ok=True)
+            dst = audio_dir / src.name
+            try:
+                already_bundled = dst.exists() and src.samefile(dst)
+            except OSError:
+                already_bundled = False
+            if not already_bundled:
+                shutil.copy2(src, dst)
+            doc.audio_path = str(dst)
+
+    def _serialize_project(self, project_path: Path) -> dict:
+        """Project dict with ``audio_path`` made relative to the project file dir."""
+        d = self.project.as_dict()
+        base = project_path.parent
+        for doc_d in d.get("documents", []):
+            ap = doc_d.get("audio_path")
+            if not ap:
+                continue
+            try:
+                doc_d["audio_path"] = str(Path(ap).relative_to(base))
+            except ValueError:
+                # Outside project dir — keep absolute so it still resolves
+                pass
+        return d
+
+    def _resolve_audio_paths(self, project_path: Path) -> None:
+        """Resolve any relative ``doc.audio_path`` against the project file's dir."""
+        base = project_path.parent
+        for doc in self.project.documents:
+            if not doc.audio_path:
+                continue
+            ap = Path(doc.audio_path)
+            if not ap.is_absolute():
+                doc.audio_path = str(base / ap)
 
     def on_generate_all_audio(self) -> None:
         """Generate audio for all enabled documents in the project."""
@@ -884,18 +1030,21 @@ class MainWindow(QMainWindow):
         audio_dir = self._get_project_audio_dir()
         audio_dir.mkdir(parents=True, exist_ok=True)
 
-        # Progress dialog
+        # Progress dialog — explicitly shown and pumped so it actually paints
+        # while the synchronous TTS subprocess blocks the event loop.
+        total = len(docs_to_generate)
         progress = QProgressDialog(
-            "Generating audio...",
-            "Cancel",
-            0,
-            len(docs_to_generate),
-            self
+            "Preparing…", "Cancel", 0, total, self
         )
+        progress.setWindowTitle("Generate All Audio")
         progress.setWindowModality(Qt.WindowModal)
         progress.setMinimumDuration(0)
+        progress.setAutoClose(False)
+        progress.setAutoReset(False)
+        progress.setValue(0)
+        progress.show()
+        QApplication.processEvents()
 
-        # Generate audio for each document
         from piperscribe.tts.piper import PiperTts
         from piperscribe.model.spans import subtract_spans
 
@@ -906,8 +1055,10 @@ class MainWindow(QMainWindow):
             if progress.wasCanceled():
                 break
 
-            progress.setLabelText(f"Generating audio for '{doc.title}'... ({i+1}/{len(docs_to_generate)})")
-            progress.setValue(i)
+            progress.setLabelText(
+                f"Document {i + 1} of {total}\n{doc.title}"
+            )
+            QApplication.processEvents()
 
             try:
                 # Get text after exclusions
@@ -919,8 +1070,9 @@ class MainWindow(QMainWindow):
                 filename = f"{safe_title}-{doc.id[:8]}.wav"
                 output_path = audio_dir / filename
 
-                # Generate audio
-                tts = PiperTts(doc.piper)
+                # Generate audio (blocking)
+                piper_settings = doc.piper if doc.piper.model_path else self.project.piper
+                tts = PiperTts(piper_settings)
                 tts.synthesize_to_wav(text, output_path)
 
                 # Update document metadata
@@ -932,10 +1084,12 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 errors.append(f"{doc.title}: {e}")
 
-        progress.setValue(len(docs_to_generate))
+            # Advance bar and let the list reflect the new 🔊 icon
+            progress.setValue(i + 1)
+            self._rebuild_document_list()
+            QApplication.processEvents()
 
-        # Update UI
-        self._rebuild_document_list()
+        progress.close()
 
         # Show results
         if errors:
@@ -1035,11 +1189,16 @@ class MainWindow(QMainWindow):
             )
 
     def _sync_piper_settings_from_ui(self) -> None:
-        mp = os.path.expanduser(self.model_path.text().strip())
-        self.project.piper.model_path = mp
+        # model_path is set directly by the voice combo; this method only mirrors
+        # the speed/noise spinners and propagates everything to default_piper so
+        # newly-created documents inherit the current settings.
         self.project.piper.length_scale = float(self._speed_to_length_scale(self.speed.value()))
         self.project.piper.noise_scale = float(self.noise_scale.value())
         self.project.piper.noise_w = float(self.noise_w.value())
+        self.project.default_piper.model_path = self.project.piper.model_path
+        self.project.default_piper.length_scale = self.project.piper.length_scale
+        self.project.default_piper.noise_scale = self.project.piper.noise_scale
+        self.project.default_piper.noise_w = self.project.piper.noise_w
 
     def _recompute_exclusions(self) -> None:
         # Computed exclusions = manual + (optional) rules
@@ -1194,6 +1353,7 @@ class MainWindow(QMainWindow):
         s = AppSettings(
             theme=self.project.theme,
             model_path=self.project.piper.model_path,
+            voice_dir=getattr(self._app_settings, "voice_dir", ""),
             speed=float(self.speed.value()),
             noise_scale=float(self.noise_scale.value()),
             noise_w=float(self.noise_w.value()),
@@ -1208,6 +1368,7 @@ class MainWindow(QMainWindow):
             use_default_colors=self._app_settings.use_default_colors,
             recent_files=self._app_settings.recent_files,
             recent_projects=self._app_settings.recent_projects,
+            audio_player=self._app_settings.audio_player,
         )
         try:
             save_settings(s)
@@ -1247,12 +1408,13 @@ class MainWindow(QMainWindow):
     def _apply_preferences_live(self, new: AppSettings) -> None:
         # Apply preferences without closing dialog
         self.project.theme = new.theme
-        self.model_path.setText(new.model_path)
+        self.project.piper.model_path = new.model_path
         self.speed.setValue(new.speed)
         self.noise_scale.setValue(new.noise_scale)
         self.noise_w.setValue(new.noise_w)
         self._app_settings.rules = new.rules
         self._app_settings.auto_apply_rules = getattr(new, "auto_apply_rules", True)
+        self._app_settings.audio_player = new.audio_player
         # Update font/color settings
         self._app_settings.font_family = new.font_family
         self._app_settings.font_size = new.font_size
@@ -1260,6 +1422,11 @@ class MainWindow(QMainWindow):
         self._app_settings.doc_bg_color = new.doc_bg_color
         self._app_settings.doc_text_color = new.doc_text_color
         self._app_settings.use_default_colors = new.use_default_colors
+        # Re-scan models if voice directory changed
+        if getattr(self._app_settings, "voice_dir", "") != new.voice_dir:
+            self._app_settings.voice_dir = new.voice_dir
+            self._model_index = self._scan_voice_models()
+            self._populate_voice_combo()
         if self._model_index and new.model_path:
             self._select_voice_by_path(new.model_path)
         self._apply_theme(new.theme)
@@ -1275,41 +1442,21 @@ class MainWindow(QMainWindow):
         current = AppSettings(
             theme=self.project.theme,
             model_path=self.project.piper.model_path,
+            voice_dir=getattr(self._app_settings, "voice_dir", ""),
             speed=float(self.speed.value()),
             noise_scale=float(self.noise_scale.value()),
             noise_w=float(self.noise_w.value()),
             rules=self._app_settings.rules,
             auto_apply_rules=getattr(self._app_settings, "auto_apply_rules", True),
+            audio_player=self._app_settings.audio_player,
         )
         doc = self._get_current_document()
         doc_text = doc.text if doc else ""
         dlg = PreferencesDialog(self, current, doc_text, apply_callback=self._apply_preferences_live, initial_tab=initial_tab)
-        if dlg.exec() != dlg.Accepted:
+        if dlg.exec() != QDialog.Accepted:
             return
         new = dlg.result_settings()
-        # Apply
-        self.project.theme = new.theme
-        self.model_path.setText(new.model_path)
-        self.speed.setValue(new.speed)
-        self.noise_scale.setValue(new.noise_scale)
-        self.noise_w.setValue(new.noise_w)
-        self._app_settings.rules = new.rules
-        self._app_settings.auto_apply_rules = new.auto_apply_rules
-        # Update font/color settings
-        self._app_settings.font_family = new.font_family
-        self._app_settings.font_size = new.font_size
-        self._app_settings.use_default_font = new.use_default_font
-        self._app_settings.doc_bg_color = new.doc_bg_color
-        self._app_settings.doc_text_color = new.doc_text_color
-        self._app_settings.use_default_colors = new.use_default_colors
-        if self._model_index and new.model_path:
-            self._select_voice_by_path(new.model_path)
-        self._apply_theme(new.theme)
-        self._apply_document_appearance()
-        self._persist_app_settings()
-        self._recompute_exclusions()
-        self._apply_exclusion_formatting()
-        self._update_stats()
+        self._apply_preferences_live(new)
 
     def on_find(self) -> None:
         self.find_bar.setVisible(True)
@@ -1329,11 +1476,12 @@ class MainWindow(QMainWindow):
 
     def on_new_project(self) -> None:
         # Start a new empty project (in-memory) with one empty document
+        saved_piper = PiperSettings.from_dict(self.project.piper.as_dict())
         doc = Document(
             id=Document.generate_id(),
             title="Document 1",
             text="",
-            piper=self.project.piper,
+            piper=PiperSettings.from_dict(saved_piper.as_dict()),
             order=0,
             enabled=True,
         )
@@ -1341,9 +1489,14 @@ class MainWindow(QMainWindow):
             title="Untitled Project",
             documents=[doc],
             theme=self.project.theme,
-            default_piper=self.project.piper,
+            default_piper=saved_piper,
         )
+        self.current_project_path = None
         self._refresh_view()
+
+        # Ensure a default model is selected if none was set in settings
+        if not self.project.piper.model_path:
+            self._select_default_model()
 
     def on_close_project(self) -> None:
         self.on_new_project()
@@ -1453,17 +1606,10 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
         # Refresh voice list after dialog closes (in case new voices were downloaded)
-        self._model_index = iter_model_paths()
-        self.voice_combo.clear()
-        if not self._model_index:
-            self.voice_combo.addItem("(no voices found)")
-            self.voice_combo.setEnabled(False)
-        else:
-            self.voice_combo.setEnabled(True)
-            for p in self._model_index:
-                self.voice_combo.addItem(p.stem)
-            if self.project.piper.model_path:
-                self._select_voice_by_path(self.project.piper.model_path)
+        self._model_index = self._scan_voice_models()
+        self._populate_voice_combo()
+        if self._model_index and self.project.piper.model_path:
+            self._select_voice_by_path(self.project.piper.model_path)
 
     def on_help_contents(self) -> None:
         """Open the help documentation dialog."""
@@ -1498,7 +1644,7 @@ class MainWindow(QMainWindow):
             title=res.title or p.stem,
             text=res.text,
             source_path=str(p),
-            piper=self.project.default_piper,
+            piper=PiperSettings.from_dict(self.project.piper.as_dict()),
             order=len(self.project.documents),
             enabled=True,
         )
@@ -1521,6 +1667,8 @@ class MainWindow(QMainWindow):
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
             self.project = DocumentProject.from_dict(d)
+            self._resolve_audio_paths(p)
+            self.current_project_path = str(p)
         except Exception as e:
             QMessageBox.critical(self, "Load failed", str(e))
             return
@@ -1550,7 +1698,7 @@ class MainWindow(QMainWindow):
             text=res.text,
             manual_exclusions=[],
             exclusions=[],
-            piper=self.project.piper,
+            piper=PiperSettings.from_dict(self.project.piper.as_dict()),
             theme=self.project.theme,
         )
         self.setWindowTitle(f"PiperScribe v0.1.20 — {self.project.title}")
@@ -1571,12 +1719,18 @@ class MainWindow(QMainWindow):
             path = path.with_suffix(path.suffix + ".abproj.json") if path.suffix else path.with_suffix(".abproj.json")
         try:
             self._sync_piper_settings_from_ui()
-            path.write_text(json.dumps(self.project.as_dict(), indent=2), encoding="utf-8")
+            # Copy any audio files into {project}_audio/ next to the project file
+            self._bundle_audio_files(path)
+            # Serialize with audio paths relative to the project file (portable)
+            d = self._serialize_project(path)
+            path.write_text(json.dumps(d, indent=2), encoding="utf-8")
+            self.current_project_path = str(path)
         except Exception as e:
             QMessageBox.critical(self, "Save failed", str(e))
             return
         QMessageBox.information(self, "Saved", f"Saved:\n{path}")
         self._push_recent_project(str(path))
+        self._rebuild_document_list()
 
     def on_load_project(self) -> None:
         path_str, _ = QFileDialog.getOpenFileName(
@@ -1591,6 +1745,8 @@ class MainWindow(QMainWindow):
         try:
             d = json.loads(path.read_text(encoding="utf-8"))
             self.project = DocumentProject.from_dict(d)
+            self._resolve_audio_paths(path)
+            self.current_project_path = str(path)
         except Exception as e:
             QMessageBox.critical(self, "Load failed", str(e))
             return
@@ -1600,19 +1756,9 @@ class MainWindow(QMainWindow):
         self._refresh_view()
         self._push_recent_project(str(path))
 
-    def on_browse_model(self) -> None:
-        path_str, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Piper model (.onnx)",
-            str(Path.home()),
-            "ONNX model (*.onnx);;All files (*)",
-        )
-        if not path_str:
-            return
-        self._set_model_path(path_str)
-        if self._model_index:
-            self._select_voice_by_path(path_str)
-        self._persist_app_settings()
+        # Ensure a default model is selected if none was set in settings
+        if not self.project.piper.model_path:
+            self._select_default_model()
 
     def _selection_span(self) -> Span | None:
         cur = self.editor.textCursor()
@@ -1707,9 +1853,24 @@ class MainWindow(QMainWindow):
         self._tts_proc = proc
 
     def _start_playback(self, wav_path: Path) -> None:
+        resolution = resolve_player(self._app_settings.audio_player)
+        if resolution.save_as is not None and resolution.save_as != self._app_settings.audio_player:
+            self._app_settings.audio_player = resolution.save_as
+            self._persist_app_settings()
+        if resolution.spec is None:
+            QMessageBox.warning(
+                self,
+                "No audio player",
+                "No WAV player was found on this system.\n\n"
+                "Install one (for example alsa-utils on Linux) or choose a player in "
+                "Edit → Preferences → Voice.",
+            )
+            return
+
+        argv = build_command(resolution.spec, wav_path)
         proc = QProcess(self)
-        proc.setProgram("aplay")
-        proc.setArguments([str(wav_path)])
+        proc.setProgram(argv[0])
+        proc.setArguments(argv[1:])
         proc.setProcessChannelMode(QProcess.MergedChannels)
 
         self._set_busy(True, "Playing preview… (Stop to cancel)")
@@ -1774,8 +1935,12 @@ class MainWindow(QMainWindow):
         if out.suffix.lower() != ".wav":
             out = out.with_suffix(".wav")
 
-        self._recompute_exclusions()
-        text = included_text(self.project).strip()
+        from piperscribe.model.spans import subtract_spans
+        parts = [
+            subtract_spans(doc.text, doc.exclusions).strip()
+            for doc in self.project.get_playlist_order()
+        ]
+        text = "\n".join(p for p in parts if p).strip()
         if not text:
             QMessageBox.critical(self, "Nothing to export", "All text is excluded or empty.")
             return
@@ -1793,4 +1958,61 @@ class MainWindow(QMainWindow):
         self._recompute_exclusions()
         self._apply_exclusion_formatting()
         self._update_stats()
+
+    # Audio Player Controls
+
+    def on_play_audio(self) -> None:
+        """Play audio for the currently active document."""
+        if self._player.playbackState() == QMediaPlayer.PausedState:
+            self._player.play()
+            return
+
+        doc = self._get_current_document()
+        if not doc or not doc.audio_path:
+            return
+
+        path = Path(doc.audio_path)
+        if not path.exists():
+            QMessageBox.warning(self, "Audio File Missing", f"Audio file not found:\n{path}")
+            return
+
+        self.on_play_document_audio(doc)
+
+    def on_play_document_audio(self, doc: Document) -> None:
+        """Play audio for a specific document."""
+        if not doc.audio_path:
+            return
+
+        path = Path(doc.audio_path)
+        if not path.exists():
+            return
+
+        self._player.stop()
+        self._player.setSource(QUrl.fromLocalFile(str(path)))
+        self._player.play()
+
+    def on_pause_audio(self) -> None:
+        """Pause audio playback."""
+        self._player.pause()
+
+    def on_stop_audio(self) -> None:
+        """Stop audio playback."""
+        self._player.stop()
+
+    def _on_playback_state_changed(self, state: QMediaPlayer.PlaybackState) -> None:
+        """Update UI based on audio playback state."""
+        is_playing = state == QMediaPlayer.PlayingState
+        is_paused = state == QMediaPlayer.PausedState
+        is_stopped = state == QMediaPlayer.StoppedState
+
+        self.act_play.setEnabled(not is_playing)
+        self.act_pause.setEnabled(is_playing)
+        self.act_stop.setEnabled(not is_stopped)
+
+        if is_playing:
+            self.act_play.setText("▶ Playing")
+        elif is_paused:
+            self.act_play.setText("▶ Resume")
+        else:
+            self.act_play.setText("▶ Play")
 

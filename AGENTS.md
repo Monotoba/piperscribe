@@ -77,3 +77,7 @@ For each completed task, provide:
 - Primary Python: project uses uv-managed venv via `./setup-prj.sh`
 - GUI tests may require a display (skip appropriately in headless CI)
 
+## Final Instruction
+- Read AGENT.md before begining and task
+
+

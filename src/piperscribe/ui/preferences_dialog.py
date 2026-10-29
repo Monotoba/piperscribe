@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 
+from piperscribe.audio.player import AUTO, build_command, player_names, resolve_player
 from piperscribe.settings import AppSettings, reset_settings
 from piperscribe.tts.piper_utils import check_piper_installed, iter_model_paths
 from piperscribe.ui.rules_editor import RulesEditorWidget
@@ -45,7 +46,8 @@ class PreferencesDialog(QDialog):
         self._text = document_text
         self._apply_callback = apply_callback
         self._current = current
-        self._models = iter_model_paths()
+        self._selected_model_path: str = current.model_path or ""
+        self._models = self._discover_models(current.voice_dir)
 
         self.tabs = QTabWidget()
 
@@ -125,24 +127,20 @@ class PreferencesDialog(QDialog):
         vf = QFormLayout()
 
         self.voice = QComboBox()
-        self.voice.setEnabled(bool(self._models))
-        if not self._models:
-            self.voice.addItem("(no voices found)")
-        else:
-            for p in self._models:
-                self.voice.addItem(p.stem)
+        self.voice.setToolTip("Select the default voice from voices found in the directory below")
 
-        self.model_path = QLineEdit(current.model_path or "")
-        self.model_path.setPlaceholderText("Path to Piper .onnx model")
-        btn_browse = QPushButton("Browse…")
-        btn_browse.clicked.connect(self._browse_model)
+        self.voice_dir = QLineEdit(current.voice_dir or "")
+        self.voice_dir.setPlaceholderText("~/.local/share/piper/voices  (leave blank for defaults)")
+        self.voice_dir.editingFinished.connect(self._on_voice_dir_changed)
+        btn_browse_dir = QPushButton("Browse…")
+        btn_browse_dir.clicked.connect(self._browse_voice_dir)
 
-        row = QHBoxLayout()
-        row.addWidget(self.model_path, 1)
-        row.addWidget(btn_browse)
+        dir_row = QHBoxLayout()
+        dir_row.addWidget(self.voice_dir, 1)
+        dir_row.addWidget(btn_browse_dir)
 
-        vf.addRow("Voice:", self.voice)
-        vf.addRow("Model path:", row)
+        vf.addRow("Default voice:", self.voice)
+        vf.addRow("Voice directory:", dir_row)
 
         self.speed = QDoubleSpinBox()
         self.speed.setRange(0.5, 2.0)
@@ -166,6 +164,19 @@ class PreferencesDialog(QDialog):
         self.auto_apply_rules = QCheckBox("Auto-apply rules on open/export")
         self.auto_apply_rules.setChecked(bool(getattr(current, "auto_apply_rules", True)))
         vf.addRow("Rules:", self.auto_apply_rules)
+
+        self.audio_player = QComboBox()
+        self.audio_player.setToolTip(
+            "Program used to play previews. Default finds one for this system and saves it; "
+            "Auto finds one on every run."
+        )
+        self.audio_player.addItem("Default (detect and save)", "")
+        self.audio_player.addItem("Auto (detect every run)", AUTO)
+        for name in player_names():
+            self.audio_player.addItem(name, name)
+        player_index = self.audio_player.findData(current.audio_player or "")
+        self.audio_player.setCurrentIndex(max(player_index, 0))
+        vf.addRow("Audio player:", self.audio_player)
 
         vl.addLayout(vf)
 
@@ -197,9 +208,9 @@ class PreferencesDialog(QDialog):
         vl.addStretch(1)
         self.tabs.addTab(voice, "Voice")
 
-        # Align voice dropdown to model_path when possible
+        # Populate the voice dropdown from the configured directory
         self.voice.currentIndexChanged.connect(self._voice_selected)
-        self._sync_voice_from_path(current.model_path)
+        self._refresh_voice_list()
 
         # --- Rules tab ---
         rules = QWidget()
@@ -242,22 +253,28 @@ class PreferencesDialog(QDialog):
         self.tabs.setCurrentIndex(initial_tab)
 
 
-    def _browse_model(self) -> None:
-        path_str, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select Piper model (.onnx)",
-            str(Path.home()),
-            "ONNX model (*.onnx);;All files (*)",
-        )
-        if not path_str:
+    def _discover_models(self, voice_dir: str) -> list[Path]:
+        vd = (voice_dir or "").strip()
+        if vd:
+            return iter_model_paths([Path(vd).expanduser()])
+        return iter_model_paths()
+
+    def _browse_voice_dir(self) -> None:
+        start = self.voice_dir.text().strip() or str(Path.home() / ".local/share/piper/voices")
+        path = QFileDialog.getExistingDirectory(self, "Select voice models directory", start)
+        if not path:
             return
-        self.model_path.setText(path_str)
-        self._sync_voice_from_path(path_str)
+        self.voice_dir.setText(path)
+        self._on_voice_dir_changed()
+
+    def _on_voice_dir_changed(self) -> None:
+        self._models = self._discover_models(self.voice_dir.text())
+        self._refresh_voice_list()
 
     def _voice_selected(self, idx: int) -> None:
         if idx < 0 or idx >= len(self._models):
             return
-        self.model_path.setText(str(self._models[idx]))
+        self._selected_model_path = str(self._models[idx])
 
     def _sync_voice_from_path(self, model_path: str | None) -> None:
         if not model_path or not self._models:
@@ -295,7 +312,7 @@ class PreferencesDialog(QDialog):
             return
 
         # Get selected voice model path
-        model_path = self.model_path.text().strip()
+        model_path = (self._selected_model_path or "").strip()
         if not model_path:
             QMessageBox.warning(self, "No Voice Selected", "Please select a voice model first.")
             return
@@ -327,17 +344,19 @@ class PreferencesDialog(QDialog):
                 QMessageBox.critical(self, "Piper Error", f"Failed to generate audio:\n{error_msg}")
                 return
 
-            # Play the audio using aplay (Linux) - could be extended for other platforms
-            try:
-                subprocess.run(["aplay", wav_path], check=True, timeout=10)
-            except FileNotFoundError:
+            # Play with the player chosen in Voice settings, or the one found for this system
+            resolution = resolve_player(self.audio_player.currentData() or "")
+            if resolution.spec is None:
                 QMessageBox.information(
                     self,
                     "Audio Generated",
-                    f"Audio generated successfully but cannot play automatically.\n\nFile saved to: {wav_path}"
+                    f"Audio generated successfully but no audio player was found.\n\nFile saved to: {wav_path}"
                 )
-            except Exception as e:
-                QMessageBox.warning(self, "Playback Error", f"Failed to play audio:\n{e}")
+            else:
+                try:
+                    subprocess.run(build_command(resolution.spec, Path(wav_path)), check=True, timeout=10)
+                except Exception as e:
+                    QMessageBox.warning(self, "Playback Error", f"Failed to play audio:\n{e}")
 
         except subprocess.TimeoutExpired:
             QMessageBox.warning(self, "Timeout", "Voice test timed out.")
@@ -351,9 +370,9 @@ class PreferencesDialog(QDialog):
                 pass
 
     def _refresh_voice_list(self) -> None:
-        """Refresh the voice dropdown list."""
-        current_path = self.model_path.text().strip()
-        self._models = iter_model_paths()
+        """Refresh the voice dropdown list from the configured voice directory."""
+        self._models = self._discover_models(self.voice_dir.text())
+        self.voice.blockSignals(True)
         self.voice.clear()
         if not self._models:
             self.voice.addItem("(no voices found)")
@@ -362,9 +381,13 @@ class PreferencesDialog(QDialog):
             self.voice.setEnabled(True)
             for p in self._models:
                 self.voice.addItem(p.stem)
-            # Try to reselect current voice
-            if current_path:
-                self._sync_voice_from_path(current_path)
+            if self._selected_model_path:
+                self._sync_voice_from_path(self._selected_model_path)
+        self.voice.blockSignals(False)
+        # If nothing matched but we have models, snap selection to first
+        if self._models and self.voice.currentIndex() < 0:
+            self.voice.setCurrentIndex(0)
+            self._selected_model_path = str(self._models[0])
 
     def _browse_voices(self) -> None:
         """Open voice browser dialog."""
@@ -373,13 +396,13 @@ class PreferencesDialog(QDialog):
         dlg = VoiceBrowserDialog(self, self._current.voice_repositories)
         # Connect signal to refresh voice list immediately when download completes
         dlg.voice_downloaded.connect(self._refresh_voice_list)
-        # Also refresh when dialog closes in case user downloaded multiple voices
-        if dlg.exec() == dlg.Accepted or True:
-            self._refresh_voice_list()
+        # Refresh after dialog closes (covers the case of multiple downloads)
+        dlg.exec()
+        self._refresh_voice_list()
 
     def _delete_voice(self) -> None:
         """Delete the selected voice model."""
-        model_path = self.model_path.text().strip()
+        model_path = (self._selected_model_path or "").strip()
         if not model_path:
             QMessageBox.warning(self, "No Voice Selected", "Please select a voice model to delete.")
             return
@@ -414,7 +437,7 @@ class PreferencesDialog(QDialog):
             QMessageBox.information(self, "Voice Deleted", f"Voice '{voice_name}' has been deleted.")
 
             # Clear current selection and refresh voice list
-            self.model_path.clear()
+            self._selected_model_path = ""
             self._refresh_voice_list()
 
         except Exception as e:
@@ -471,7 +494,8 @@ class PreferencesDialog(QDialog):
         theme = {"system": "system", "light": "light", "dark": "dark"}.get(theme_label, "system")
         return AppSettings(
             theme=theme,
-            model_path=self.model_path.text().strip(),
+            model_path=(self._selected_model_path or "").strip(),
+            voice_dir=self.voice_dir.text().strip(),
             speed=float(self.speed.value()),
             noise_scale=float(self.noise_scale.value()),
             noise_w=float(self.noise_w.value()),
@@ -484,4 +508,5 @@ class PreferencesDialog(QDialog):
             doc_bg_color=self._bg_color,
             doc_text_color=self._text_color,
             use_default_colors=self.use_default_colors.isChecked(),
+            audio_player=self.audio_player.currentData() or "",
         )

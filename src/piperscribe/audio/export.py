@@ -8,6 +8,13 @@ from piperscribe.tts.piper import PiperTts
 
 
 def included_text(project: DocumentProject) -> str:
+    if project.documents:
+        parts = [
+            subtract_spans(doc.text, doc.exclusions).strip()
+            for doc in project.get_playlist_order()
+        ]
+        return "\n".join(p for p in parts if p) + "\n"
+    # Legacy single-document fallback
     text = subtract_spans(project.text, project.exclusions)
     return text.strip() + "\n"
 
