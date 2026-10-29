@@ -177,7 +177,7 @@ class RulesEditorWidget(QWidget):
 
     def _add_rule(self) -> None:
         self._save_selected()
-        self._rules.append(RegexRule(name="New rule", pattern=r"")) 
+        self._rules.append(RegexRule(name="New rule", pattern=r""))
         self._rebuild_list()
         self.list.setCurrentRow(len(self._rules) - 1)
 

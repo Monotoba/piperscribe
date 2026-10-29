@@ -39,4 +39,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 # Explicit rules so CI and local checks agree across ruff versions.
-select = ["E4", "E7", "E9", "F", "I", "RUF100"]
+select = ["E", "W", "F", "I", "B", "RUF"]
+# E501 (line length) is left off: long lines are a style choice, not a defect.
+# RUF001 is left off: the UI uses × and ⨯ on purpose as icons.
+ignore = ["E501", "RUF001"]
